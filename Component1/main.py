@@ -58,6 +58,7 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 """
 Experiment 1
 """
+
 rho = 1
 d_list = [100, 200, 400, 800, 1600]
 num_runs = 10
@@ -68,10 +69,12 @@ num_epochs = 100
 
 
 # Testing
-d = 100
-cov_a = np.eye(d) # TODO: Change alpha_d
+d = 400
+n = int(d/rho)
+alpha_d = d
+cov_a = alpha_d * np.eye(d) 
 sigma2 = 1
-beta_n =1
+beta_n = n
 gamma = 1/d
 
 for run in range(num_runs): # TODO : wrap in d 
@@ -111,3 +114,7 @@ plt.ylabel("True risk")
 plt.title("True risk")
 plt.yscale("log")
 plt.show()
+
+
+
+

@@ -18,3 +18,13 @@ def generate_data(n, d, cov_A, sigma_2, beta_n):
     b = A @ theta_star + epsilon
 
     return A, b, theta_star
+
+
+def compute_risk(A, b, theta):
+    """
+    Computes empirical risk
+    """
+
+    n = A.shape[0]
+
+    return 1/(2*n) * np.linalg.norm(A@theta - b)**2

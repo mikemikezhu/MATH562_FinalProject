@@ -81,11 +81,14 @@ for run in range(num_runs): # TODO : wrap in d
 
 
 all_runs_empirical_risk = np.array(all_runs_empirical_risk)
-all_runs_true_risk = np.array(all_runs_true_risk)
-
 empirical_risk_hist_mean = np.mean(all_runs_empirical_risk, axis=0)
 empirical_risk_hist_std = np.std(all_runs_empirical_risk, axis=0)
 
+all_runs_true_risk = np.array(all_runs_true_risk)
+true_risk_hist_mean = np.mean(all_runs_true_risk, axis=0)
+true_risk_hist_std = np.std(all_runs_true_risk, axis=0)
+
+# Plot empirical
 plt.plot(np.arange(num_epochs), empirical_risk_hist_mean)
 plt.fill_between(np.arange(num_epochs), 
                  empirical_risk_hist_mean - empirical_risk_hist_std, 
@@ -94,5 +97,17 @@ plt.fill_between(np.arange(num_epochs),
 plt.xlabel("Num of epochs")
 plt.ylabel("Empirical risk")
 plt.title("Training error")
+plt.yscale("log")
+plt.show()
+
+# Plot true risk
+plt.plot(np.arange(num_epochs), true_risk_hist_mean)
+plt.fill_between(np.arange(num_epochs), 
+                 true_risk_hist_mean - true_risk_hist_std, 
+                 true_risk_hist_mean + true_risk_hist_std, 
+                 alpha=0.2)
+plt.xlabel("Num of epochs")
+plt.ylabel("True risk")
+plt.title("True risk")
 plt.yscale("log")
 plt.show()

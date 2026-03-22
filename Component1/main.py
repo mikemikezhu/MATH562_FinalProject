@@ -47,7 +47,7 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
             idx  = np.random.randint(0, n)
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
+            theta -= gamma * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
@@ -55,64 +55,78 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
     return empirical_risk_hist, true_risk_hist
 
 
-"""
-Experiment 1
-"""
+###############################################################################
+# Experiment 1
+###############################################################################
+
 
 rho = 1
 d_list = [100, 200, 400, 800, 1600]
 num_runs = 10
-all_runs_empirical_risk = []
-all_runs_true_risk = []
 num_epochs = 100
-
-
-
-# Testing
-d = 400
-n = int(d/rho)
-alpha_d = d
-cov_a = alpha_d * np.eye(d) 
 sigma2 = 1
-beta_n = n
-gamma = 1/d
 
-for run in range(num_runs): # TODO : wrap in d 
-    empirical_risk_hist, true_risk_hist = run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma)
-    all_runs_empirical_risk.append(empirical_risk_hist)
-    all_runs_true_risk.append(true_risk_hist)
+results = {}
+for d in d_list:
 
+    n = int(d / rho)
+    alpha_d = 1/d
+    cov_a = alpha_d * np.eye(d)
+    beta_n = 1
+    gamma = 1/d
 
-all_runs_empirical_risk = np.array(all_runs_empirical_risk)
-empirical_risk_hist_mean = np.mean(all_runs_empirical_risk, axis=0)
-empirical_risk_hist_std = np.std(all_runs_empirical_risk, axis=0)
+    all_runs_empirical_risk = []
+    all_runs_true_risk = []
 
-all_runs_true_risk = np.array(all_runs_true_risk)
-true_risk_hist_mean = np.mean(all_runs_true_risk, axis=0)
-true_risk_hist_std = np.std(all_runs_true_risk, axis=0)
+    for run in range(num_runs):
+        empirical_risk_hist, true_risk_hist = run_sgd(
+            rho, d, cov_a, sigma2, beta_n, num_epochs, gamma
+        )
+        all_runs_empirical_risk.append(empirical_risk_hist)
+        all_runs_true_risk.append(true_risk_hist)
 
-# Plot empirical
-plt.plot(np.arange(num_epochs), empirical_risk_hist_mean)
-plt.fill_between(np.arange(num_epochs), 
-                 empirical_risk_hist_mean - empirical_risk_hist_std, 
-                 empirical_risk_hist_mean + empirical_risk_hist_std, 
-                 alpha=0.2)
+    all_runs_empirical_risk = np.array(all_runs_empirical_risk)
+    empirical_risk_hist_mean = np.mean(all_runs_empirical_risk, axis=0)
+    empirical_risk_hist_std = np.std(all_runs_empirical_risk, axis=0)
+
+    all_runs_true_risk = np.array(all_runs_true_risk)
+    true_risk_hist_mean = np.mean(all_runs_true_risk, axis=0)
+    true_risk_hist_std = np.std(all_runs_true_risk, axis=0)
+
+    results[d] = {
+        "empirical_mean": empirical_risk_hist_mean,
+        "empirical_std": empirical_risk_hist_std,
+        "true_mean": true_risk_hist_mean,
+        "true_std": true_risk_hist_std,
+    }
+    
+# Plot empirical risk for all d
+for d in d_list:
+    mean = results[d]["empirical_mean"]
+    std = results[d]["empirical_std"]
+    plt.plot(np.arange(num_epochs), mean, label=f"d={d}")
+    plt.fill_between(np.arange(num_epochs), mean - std, mean + std, alpha=0.1)
+
 plt.xlabel("Num of epochs")
 plt.ylabel("Empirical risk")
-plt.title("Training error")
+plt.title("Training error for different d")
 plt.yscale("log")
+plt.legend()
 plt.show()
 
-# Plot true risk
-plt.plot(np.arange(num_epochs), true_risk_hist_mean)
-plt.fill_between(np.arange(num_epochs), 
-                 true_risk_hist_mean - true_risk_hist_std, 
-                 true_risk_hist_mean + true_risk_hist_std, 
-                 alpha=0.2)
+# Plot true risk for all d
+plt.figure(figsize=(10, 6))
+for d in d_list:
+    mean = results[d]["true_mean"]
+    std = results[d]["true_std"]
+    plt.plot(np.arange(num_epochs), mean, label=f"d={d}")
+    plt.fill_between(np.arange(num_epochs), mean - std, mean + std, alpha=0.1)
+
 plt.xlabel("Num of epochs")
 plt.ylabel("True risk")
-plt.title("True risk")
+plt.title("True risk for different d")
 plt.yscale("log")
+plt.legend()
 plt.show()
 
 

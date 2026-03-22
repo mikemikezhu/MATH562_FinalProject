@@ -56,19 +56,13 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     return empirical_risk_hist, true_risk_hist
 
+def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, sgd_algo):
 
-###############################################################################
-# Experiment 1
-###############################################################################
-
-
-rho = 1
-d_list = [100, 200, 400, 800, 1600]
-num_runs = 10
-num_epochs = 100
-sigma2 = 1
-
-def experiment(d_list, rho, num_runs, num_epochs, sigma2, gamma):
+    """
+    Plot the empirical and true risk evolution per epoch
+    :gamma: learning rate
+    :sgd_algo: The chosen sgd algo (classical, single shuffle, multiple shuffle...)
+    """
 
     results = {}
 
@@ -83,7 +77,7 @@ def experiment(d_list, rho, num_runs, num_epochs, sigma2, gamma):
         all_runs_true_risk = []
 
         for run in range(num_runs):
-            empirical_risk_hist, true_risk_hist = run_sgd(
+            empirical_risk_hist, true_risk_hist = sgd_algo(
                 rho, d, cov_a, sigma2, beta_n, num_epochs, gamma
             )
             all_runs_empirical_risk.append(empirical_risk_hist)
@@ -135,13 +129,90 @@ def experiment(d_list, rho, num_runs, num_epochs, sigma2, gamma):
     plt.show()
 
 
-experiment(d_list, rho, num_runs, num_epochs, sigma2, gamma)
+###############################################################################
+# Experiment 1 - FIguring out the scaling gamma in small batch SGD
+###############################################################################
+
+rho = 2
+d_list = [100, 200, 400, 800, 1600]
+num_runs = 10
+num_epochs = 10
+sigma2 = 1
+
+# plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, run_sgd)
 
 
 
 ###############################################################################
-# Experiment 2
+# Experiment 2 - Effect of randomness in SGD
 ###############################################################################
 
+def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
-# Single shuffle sgd
+    empirical_risk_hist = []
+    true_risk_hist = []
+
+    n = int(d/rho)
+
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+
+    theta = np.random.randn(d) # Random initialization. TODO : Maybe change this
+
+    permutation = np.random.permutation(n)
+
+    for epoch in range(num_epochs):
+        for i in range(n):
+            idx  = permutation[i]
+            a_idx = A[idx, :]
+            b_idx = b[idx]
+            theta -= gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
+    return empirical_risk_hist, true_risk_hist
+
+
+rho = 2
+d_list = [100, 200, 400, 800, 1600]
+d_list = [100, 200, 400]
+num_runs = 10
+num_epochs = 10
+sigma2 = 1
+
+#plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, single_suffle_sgd)
+
+
+
+def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
+
+    empirical_risk_hist = []
+    true_risk_hist = []
+
+    n = int(d/rho)
+
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+
+    theta = np.random.randn(d) # Random initialization. TODO : Maybe change this
+
+    for epoch in range(num_epochs):
+        permutation = np.random.permutation(n)
+        for i in range(n):
+            idx  = permutation[i]
+            a_idx = A[idx, :]
+            b_idx = b[idx]
+            theta -= gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
+    return empirical_risk_hist, true_risk_hist
+
+
+rho = 2
+d_list = [100, 200, 400]
+num_runs = 10
+num_epochs = 10
+sigma2 = 1
+
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, multiple_suffle_sgd)

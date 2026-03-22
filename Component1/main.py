@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def gamma(d):
-    return 1
+    return 1/d
 
 def generate_data(n, d, cov_a, sigma2, beta_n):
     """
@@ -28,6 +28,19 @@ def compute_empirical_risk(A, b, theta):
     n = A.shape[0]
     
     return 1/(2*n) * np.linalg.norm(A@theta - b)**2
+
+def test_scaling_empirical(d_list, rho, sigma2):
+    """
+    Test if the empirical risk remains stable when d varies
+    """
+    for d in d_list:
+        theta = np.random.randn(d)
+        n = int(d/rho)
+        alpha_d = 1/d
+        cov_a = alpha_d * np.eye(d)
+        beta_n = 1
+        A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+        print("Empirical risk, d = " + str(d) + ": " + str(compute_empirical_risk(A, b, theta)))
 
 def compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n):
     return 1/2 * (theta_star - theta).T @ cov_a @ (theta_star - theta) + 1/2 * sigma2 * beta_n
@@ -215,4 +228,4 @@ num_runs = 10
 num_epochs = 10
 sigma2 = 1
 
-plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, multiple_suffle_sgd)
+# plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, multiple_suffle_sgd)

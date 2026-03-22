@@ -73,7 +73,7 @@ for d in d_list:
     alpha_d = 1/d
     cov_a = alpha_d * np.eye(d)
     beta_n = 1
-    gamma = 1/d
+    gamma = 1/np.trace(cov_a)
 
     all_runs_empirical_risk = []
     all_runs_true_risk = []

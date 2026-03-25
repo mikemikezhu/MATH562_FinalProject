@@ -4,9 +4,6 @@ Imports
 import numpy as np
 import matplotlib.pyplot as plt
 
-def gamma(d):
-    return d
-
 def generate_data(n, d, cov_a, sigma2, beta_n):
     """
     :param cov_a: dxd covariance matrix of a
@@ -24,9 +21,7 @@ def generate_data(n, d, cov_a, sigma2, beta_n):
 
 
 def compute_empirical_risk(A, b, theta):
-
     n = A.shape[0]
-    
     return 1/(2*n) * np.linalg.norm(A@theta - b)**2
 
 def test_scaling_empirical(d_list, rho, sigma2):
@@ -69,12 +64,13 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     return empirical_risk_hist, true_risk_hist
 
-def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, sgd_algo):
+def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat):
 
     """
     Plot the empirical and true risk evolution per epoch
     :gamma: learning rate
     :sgd_algo: The chosen sgd algo (classical, single shuffle, multiple shuffle...)
+    :sigma_hat: See projection description. 
     """
 
     results = {}
@@ -83,7 +79,7 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, sgd_algo):
 
         n = int(d / rho)
         alpha_d = 1/d
-        cov_a = alpha_d * np.eye(d)
+        cov_a = alpha_d * sigma_hat(d)
         beta_n = 1
 
         all_runs_empirical_risk = []
@@ -150,10 +146,10 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, sgd_algo):
 rho = 1
 d_list = [100, 200, 400]
 num_runs = 10
-num_epochs = 10
+num_epochs = 100
 sigma2 = 0.01
 
-plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, run_sgd)
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, run_sgd, gamma=lambda d:d, sigma_hat=lambda d:np.eye(d))
 
 
 
@@ -187,17 +183,6 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
     return empirical_risk_hist, true_risk_hist
 
 
-rho = 2
-d_list = [100, 200, 400, 800, 1600]
-d_list = [100, 200, 400]
-num_runs = 10
-num_epochs = 10
-sigma2 = 1
-
-#plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, single_suffle_sgd)
-
-
-
 def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     empirical_risk_hist = []
@@ -222,11 +207,3 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     return empirical_risk_hist, true_risk_hist
 
-
-rho = 2
-d_list = [100, 200, 400]
-num_runs = 10
-num_epochs = 10
-sigma2 = 1
-
-# plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, multiple_suffle_sgd)

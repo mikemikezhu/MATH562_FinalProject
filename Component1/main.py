@@ -4,6 +4,8 @@ Imports
 import numpy as np
 import matplotlib.pyplot as plt
 
+np.random.seed(1) # Set seed
+
 def generate_data(n, d, cov_a, sigma2, beta_n):
     """
     :param cov_a: dxd covariance matrix of a
@@ -41,7 +43,7 @@ def compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n):
     return 1/2 * (theta_star - theta).T @ cov_a @ (theta_star - theta) + 1/2 * sigma2 * beta_n
 
 
-def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
+def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
 
     empirical_risk_hist = []
     true_risk_hist = []
@@ -52,19 +54,30 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     theta = np.random.randn(d) # Random initialization
 
+    # Set absolute constant L (for the learning rate gamma(d))
+    U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
+    if step_type == "max":
+        L = S[0]**2
+    
+    elif step_type == "avg":
+        L = np.mean(S**2)
+
+    else:
+        L = 1
+
     for epoch in range(num_epochs):
         for _ in range(n):
             idx  = np.random.randint(0, n)
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx 
+            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx 
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
 
     return empirical_risk_hist, true_risk_hist
 
-def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat):
+def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None):
 
     """
     Plot the empirical and true risk evolution per epoch
@@ -87,7 +100,7 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
 
         for run in range(num_runs):
             empirical_risk_hist, true_risk_hist = sgd_algo(
-                rho, d, cov_a, sigma2, beta_n, num_epochs, gamma
+                rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type
             )
             all_runs_empirical_risk.append(empirical_risk_hist)
             all_runs_true_risk.append(true_risk_hist)
@@ -140,7 +153,7 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
 
 
 ###############################################################################
-# Experiment 1 - Figuring out the scaling gamma in small batch SGD
+# Parameters
 ###############################################################################
 
 rho = 1
@@ -149,8 +162,15 @@ num_runs = 10
 num_epochs = 100
 sigma2 = 0.01
 
-plot_risk(d_list, rho, num_runs, num_epochs, sigma2, run_sgd, gamma=lambda d:d, sigma_hat=lambda d:np.eye(d))
+###############################################################################
+# Experiment 1 - Figuring out the scaling gamma in small batch SGD
+###############################################################################
 
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, run_sgd, gamma=lambda d:d, sigma_hat=lambda d:np.eye(d)) 
+
+# Let's find the absolute constant for the learning rate
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, run_sgd, gamma=lambda d:d, sigma_hat=lambda d:np.eye(d), step_type="max") 
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, run_sgd, gamma=lambda d:d, sigma_hat=lambda d:np.eye(d), step_type="avg") 
 
 
 ###############################################################################

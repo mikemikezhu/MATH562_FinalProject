@@ -8,7 +8,7 @@ class BaseRegime:
         self.m = m
         self.activation_name = activation
 
-        self.W = np.random.randn(d, m)
+        self.W = np.random.randn(m, d)
         self.a = np.random.randn(m)
 
         self.alpha = 1
@@ -36,7 +36,7 @@ class BaseRegime:
 
     def forward(self, X):
         self.X = X
-        self.Z = X @ self.W # (n, m)
+        self.Z = X @ self.W.T # (n, m)
         self.A = self.sigma(self.Z) # (n, m)
         return (1 / self.alpha) * self.A @ self.a # (n,)
 
@@ -56,9 +56,8 @@ class BaseRegime:
         dA_dZ = self.sigma_prime(self.Z)           # (n, m)
         dL_dZ = dL_dA * dA_dZ                     # (n, m)
 
-        # dL/dW — X^T @ dL_dZ
-        dZ_dW = self.X
-        dL_dW = dZ_dW.T @ dL_dZ                   # (d, m)
+        # dL/dW — dL_dZ^T @ X
+        dL_dW = dL_dZ.T @ self.X                   # (m, d)
 
         # Store gradients
         self.grad_W = dL_dW

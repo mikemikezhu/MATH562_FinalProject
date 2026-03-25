@@ -1,11 +1,5 @@
 import numpy as np
-
-try:
-    from scipy.special import erf as _scipy_erf
-    _HAS_SCIPY = True
-except ImportError:
-    _HAS_SCIPY = False
-
+from scipy.special import erf
 
 class BaseRegime:
     """
@@ -46,10 +40,7 @@ class BaseRegime:
         elif self.activation_name == "tanh":
             return np.tanh(z)
         elif self.activation_name == "erf":
-            if not _HAS_SCIPY:
-                raise ImportError("scipy is required for the 'erf' activation. "
-                                  "Install with: pip install scipy")
-            return _scipy_erf(z)
+            return erf(z)
         else:
             raise ValueError(f"Unsupported activation: {self.activation_name!r}. "
                              f"Choose from 'relu', 'erf', 'tanh'.")
@@ -122,12 +113,12 @@ class BaseRegime:
     # Gradient descent step
     # ------------------------------------------------------------------
 
-    def gradient_descent_step(self, X, y_true, lr):
+    def gradient_descent_step(self, X, y_true, learning_rate):
         """One step of full gradient descent (updates both W and a)."""
         y_pred = self.forward(X)
         dL_dW, dL_da = self.backward(y_true, y_pred)
-        self.W -= lr * dL_dW
-        self.a -= lr * dL_da
+        self.W -= learning_rate * dL_dW
+        self.a -= learning_rate * dL_da
 
     # ------------------------------------------------------------------
     # Loss

@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 def gamma(d):
-    return 1/d
+    return d
 
 def generate_data(n, d, cov_a, sigma2, beta_n):
     """
@@ -55,14 +55,14 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
 
-    theta = np.random.randn(d) # Random initialization. TODO : Maybe change this
+    theta = np.random.randn(d) # Random initialization
 
     for epoch in range(num_epochs):
         for _ in range(n):
             idx  = np.random.randint(0, n)
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
+            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx 
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
@@ -138,21 +138,22 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, sgd_algo):
     plt.ylabel("True risk")
     plt.title("True risk for different d")
     plt.yscale("log")
+    plt.xscale("log")
     plt.legend()
     plt.show()
 
 
 ###############################################################################
-# Experiment 1 - FIguring out the scaling gamma in small batch SGD
+# Experiment 1 - Figuring out the scaling gamma in small batch SGD
 ###############################################################################
 
-rho = 2
-d_list = [100, 200, 400, 800, 1600]
+rho = 1
+d_list = [100, 200, 400]
 num_runs = 10
 num_epochs = 10
-sigma2 = 1
+sigma2 = 0.01
 
-# plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, run_sgd)
+plot_risk(d_list, rho, num_runs, num_epochs, sigma2, gamma, run_sgd)
 
 
 
@@ -169,7 +170,7 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
 
-    theta = np.random.randn(d) # Random initialization. TODO : Maybe change this
+    theta = np.random.randn(d) # Random initialization
 
     permutation = np.random.permutation(n)
 
@@ -178,7 +179,7 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
+            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
@@ -206,7 +207,7 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
 
-    theta = np.random.randn(d) # Random initialization. TODO : Maybe change this
+    theta = np.random.randn(d) # Random initialization
 
     for epoch in range(num_epochs):
         permutation = np.random.permutation(n)
@@ -214,7 +215,7 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx # TODO:Should there be a 1/n?
+            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))

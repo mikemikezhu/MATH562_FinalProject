@@ -8,7 +8,7 @@ class BaseRegime:
         self.m = m
         self.activation_name = activation
 
-        self.W = np.random.randn(m, d)
+        self.W = np.random.randn(d, m)
         self.a = np.random.randn(m)
 
         self.alpha = 1
@@ -36,36 +36,42 @@ class BaseRegime:
 
     def forward(self, X):
         self.X = X
-        self.Z = X @ self.W.T # (n, m)
+        self.Z = X @ self.W # (n, m)
         self.A = self.sigma(self.Z) # (n, m)
         return (1 / self.alpha) * self.A @ self.a # (n,)
 
     def backward(self, y_true, y_pred):
-        n = y_true.shape[0]
 
-        dL_dy = 2 * (y_pred - y_true) / n # (n,)
+        dL_dy = 2 * np.mean(y_pred - y_true) # (n,)
 
-        # dL/da
-        dy_da = (1 / self.alpha) * self.A # (n, m)
-        dL_da = dL_dy @ dy_da # (m,)
+        # dL/da — a is (m,), dy/da = (1/alpha) * A^T @ dL_dy
+        dy_da = (1 / self.alpha) * self.A          # (n, m)
+        dL_da = dy_da.T @ dL_dy                    # (m,) 
 
-        # dL/dW
-        dy_dA = (1 / self.alpha) * np.tile(self.a, (n, 1))  # (n, m)
-        dA_dZ = self.sigma_prime(self.Z) # (n, m)
-        dZ_dW = self.X # (n, d)
+        # dL/dA — elementwise: dL/dA_ij = dL_dy_i * (1/alpha) * a_j
+        dy_dA = (1 / self.alpha) * self.a          # (m,)
+        dL_dA = dL_dy[:, None] * dy_dA[None, :]   # (n, m) 
 
-        # need (m, d) for dL/dW
-        dL_dW = dL_dy @ (dy_dA * dA_dZ) @ dZ_dW # (m, d)
-        
-        dL_dZ = dy_dA * dA_dZ # (n, m)
-        dL_dW = dL_dZ.T @ self.X # (m, d)
+        # dL/dZ — elementwise multiply with sigma'
+        dA_dZ = self.sigma_prime(self.Z)           # (n, m)
+        dL_dZ = dL_dA * dA_dZ                     # (n, m)
 
-        pass
+        # dL/dW — X^T @ dL_dZ
+        dZ_dW = self.X
+        dL_dW = dZ_dW.T @ dL_dZ                   # (d, m)
+
+        # Store gradients
+        self.grad_W = dL_dW
+        self.grad_a = dL_da
+
+        return dL_dW, dL_da
 
     def gradient_descent_step(self, X, y_true, learning_rate):
         y_pred = self.forward(X)
-        dW1, db1, dW2, db2 = self.backward(y_true, y_pred)
-        pass
+        dL_dW, dL_da = self.backward(y_true, y_pred)
+
+        self.W -= learning_rate * dL_dW
+        self.a -= learning_rate * dL_da
 
     def train(self, X, y, learning_rate, n_iterations):
         losses = []

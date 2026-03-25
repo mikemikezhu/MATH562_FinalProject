@@ -193,13 +193,32 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Main experiment loop
+# Entry point
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_experiment(args, logger, X_train, y_train, X_test, y_test):
-    lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
+def main():
+    args = parse_args()
 
-    total = len(args.regimes) * len(args.activations) * len(args.m_values)
+    logs_dir = os.path.join(args.out_dir, "logs")
+    logger, log_stem = setup_logger(logs_dir, name="experiment1")
+
+    # Plots live in a subdirectory named after the log file
+    plots_dir = os.path.join(args.out_dir, "plots", log_stem)
+    os.makedirs(plots_dir, exist_ok=True)
+
+    logger.info("=" * 60)
+    logger.info("MATH562 — Experiment 1: Regime Comparison")
+    logger.info("=" * 60)
+    logger.info(f"Output directory: {os.path.abspath(args.out_dir)}")
+    logger.info(f"Plots directory : {os.path.abspath(plots_dir)}")
+
+    # ── Data
+    X_train, y_train, X_test, y_test = make_dataset(args, logger)
+
+    # ── Experiment loop (plots emitted as soon as each slice is complete)
+    lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
+    total   = len(args.regimes) * len(args.activations) * len(args.m_values)
+
     logger.info("=" * 60)
     logger.info("EXPERIMENT GRID")
     logger.info("=" * 60)
@@ -213,6 +232,7 @@ def run_experiment(args, logger, X_train, y_train, X_test, y_test):
 
     results = {}
     run_idx = 0
+    t_start = time.perf_counter()
 
     for regime in args.regimes:
         lr = lr_map[regime]
@@ -242,60 +262,37 @@ def run_experiment(args, logger, X_train, y_train, X_test, y_test):
                     "test_losses":  [float(v) for v in test_losses],
                 }
 
-    return results
+            # ── After every (regime, activation) pair: training curves
+            pair_results = {k: v for k, v in results.items()
+                            if k[0] == regime and k[1] == activation}
+            plot_training_curves(pair_results, plots_dir, log_interval=args.log_every)
+            logger.info(f"  Saved curves_{regime}_{activation}.png")
 
+        # ── After all activations for this regime: width-scaling plot
+        regime_results = {k: v for k, v in results.items() if k[0] == regime}
+        plot_test_loss_vs_width(regime_results, plots_dir)
+        logger.info(f"  Saved width_scaling_{regime}.png")
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Entry point
-# ──────────────────────────────────────────────────────────────────────────────
-
-def main():
-    args = parse_args()
-
-    # Directories
-    plots_dir = os.path.join(args.out_dir, "plots")
-    logs_dir  = os.path.join(args.out_dir, "logs")
-    os.makedirs(plots_dir, exist_ok=True)
-
-    logger = setup_logger(logs_dir, name="experiment1")
-
-    logger.info("=" * 60)
-    logger.info("MATH562 — Experiment 1: Regime Comparison")
-    logger.info("=" * 60)
-    logger.info(f"Output directory: {os.path.abspath(args.out_dir)}")
-
-    # ── Data
-    X_train, y_train, X_test, y_test = make_dataset(args, logger)
-
-    # ── Train
-    t_start = time.perf_counter()
-    results = run_experiment(args, logger, X_train, y_train, X_test, y_test)
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 
     # ── Summary table
     print_summary_table(results, logger)
 
     # ── Save JSON
-    json_path = save_results(results, args.out_dir)
+    json_path = save_results(results, args.out_dir, log_stem=log_stem)
     logger.info(f"Results saved to: {json_path}")
 
-    # ── Plots
-    logger.info("Generating plots …")
-
-    plot_training_curves(results, plots_dir, log_interval=args.log_every)
-    logger.info("  [1/5] Training curves done")
-
-    plot_test_loss_vs_width(results, plots_dir)
-    logger.info("  [2/5] Width scaling plots done")
+    # ── Summary plots (need full results)
+    logger.info("Generating summary plots …")
 
     plot_regime_comparison(results, plots_dir)
-    logger.info("  [3/5] Regime comparison plots done")
+    logger.info("  [1/3] Regime comparison plots done")
 
     plot_final_loss_heatmap(results, plots_dir)
-    logger.info("  [4/5] Heatmap done")
+    logger.info("  [2/3] Heatmap done")
 
     plot_final_loss_bars(results, plots_dir)
-    logger.info("  [5/5] Bar charts done")
+    logger.info("  [3/3] Bar charts done")
 
     logger.info(f"\nAll plots saved to: {os.path.abspath(plots_dir)}")
     logger.info("Experiment complete.")

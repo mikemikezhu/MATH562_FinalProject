@@ -29,7 +29,6 @@ plt.rcParams.update({
     "font.size": 10,
 })
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Logger
 # ──────────────────────────────────────────────────────────────────────────────
@@ -71,18 +70,20 @@ def setup_logger(log_dir: str, name: str = "experiment") -> logging.Logger:
     logger.addHandler(fh)
     logger.addHandler(ch)
     logger.info(f"Logging to {log_file}")
-    return logger
+    log_stem = f"{name}_{timestamp}"
+    return logger, log_stem
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Results I/O
 # ──────────────────────────────────────────────────────────────────────────────
 
-def save_results(results: dict, save_dir: str) -> str:
+def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str:
     """
     Serialise the results dict to JSON.
 
     Keys are (regime, activation, m) tuples → converted to "regime__act__m" strings.
+    The file is named <log_stem>.json so it matches the log and plots for that run.
     Returns the path of the written file.
     """
     os.makedirs(save_dir, exist_ok=True)
@@ -98,7 +99,7 @@ def save_results(results: dict, save_dir: str) -> str:
             "final_train_loss": val["train_losses"][-1],
             "final_test_loss":  val["test_losses"][-1],
         }
-    path = os.path.join(save_dir, "results.json")
+    path = os.path.join(save_dir, f"{log_stem}.json")
     with open(path, "w") as f:
         json.dump(serialisable, f, indent=2)
     return path

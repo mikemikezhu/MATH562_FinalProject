@@ -33,6 +33,8 @@ from utils import (
     plot_final_loss_bars,
 )
 
+from data_generator import SyntheticDataGenerator
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Regime registry
 # ──────────────────────────────────────────────────────────────────────────────
@@ -213,7 +215,8 @@ def main():
     logger.info(f"Plots directory : {os.path.abspath(plots_dir)}")
 
     # ── Data
-    X_train, y_train, X_test, y_test = make_dataset(args, logger)
+    synthetic_data_generator = SyntheticDataGenerator(logger)
+    X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(**vars(args))
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
     lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}

@@ -1,21 +1,3 @@
-"""
-main.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
-
-Usage examples
---------------
-# Conservative default run
-python main.py
-
-# Custom widths and more iterations
-python main.py --m_values 50 100 200 400 800 --n_iters 2000
-
-# Single regime / activation for quick testing
-python main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
-
-# Override learning rates per regime
-python main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
-"""
-
 import argparse
 import os
 import time
@@ -57,7 +39,7 @@ DEFAULT_LR = {
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Experiment 1 — Regime comparison (NTK / MF / RF)",
+        description="Experiment 2 — Learning Rate Scaling Analysis",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
@@ -255,18 +237,6 @@ def main():
     # ── Save JSON
     json_path = save_results(results, args.out_dir, log_stem=log_stem)
     logger.info(f"Results saved to: {json_path}")
-
-    # ── Summary plots (need full results)
-    logger.info("Generating summary plots …")
-
-    plot_regime_comparison(results, plots_dir)
-    logger.info("  [1/3] Regime comparison plots done")
-
-    plot_final_loss_heatmap(results, plots_dir)
-    logger.info("  [2/3] Heatmap done")
-
-    plot_final_loss_bars(results, plots_dir)
-    logger.info("  [3/3] Bar charts done")
 
     logger.info(f"\nAll plots saved to: {os.path.abspath(plots_dir)}")
     logger.info("Experiment complete.")

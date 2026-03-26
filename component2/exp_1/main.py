@@ -4,20 +4,26 @@ main.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
 Usage examples
 --------------
 # Conservative default run
-python main.py
+python component2/exp_2/main.py
 
 # Custom widths and more iterations
-python main.py --m_values 50 100 200 400 800 --n_iters 2000
+python component2/exp_2/main.py --m_values 50 100 200 400 800 --n_iters 2000
 
 # Single regime / activation for quick testing
-python main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
+python component2/exp_2/main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
 
 # Override learning rates per regime
-python main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
+python component2/exp_2/main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
 """
 
-import argparse
 import os
+import sys
+
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+import argparse
 import time
 
 from component2.regimes import NTKRegime, MeanFieldRegime, RandomFeaturesRegime

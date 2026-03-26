@@ -211,3 +211,53 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     return empirical_risk_hist, true_risk_hist
 
+
+###############################################################################
+# Experiment 3 - Repeating experiment 1 but with SGD with momentum
+###############################################################################
+
+def sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, delta):
+
+    empirical_risk_hist = []
+    true_risk_hist = []
+
+    n = int(d/rho)
+
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+
+    theta = np.random.randn(d) # Random initialization
+    theta_prev = theta.copy()
+
+    # Set absolute constant L (for the learning rate gamma(d))
+    U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
+    if step_type == "max":
+        L = S[0]**2
+    
+    elif step_type == "avg":
+        L = np.mean(S**2)
+
+    else:
+        L = 1
+
+    for epoch in range(num_epochs):
+        for _ in range(n):
+            
+            idx  = np.random.randint(0, n)
+            a_idx = A[idx, :]
+            b_idx = b[idx]
+            theta_old = theta.copy()
+            theta = theta - 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx + delta * (theta - theta_prev)
+            theta_prev = theta_old
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
+    return empirical_risk_hist, true_risk_hist
+
+
+def sgd_momentum_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
+    """
+    Wrapper function
+    """
+    return sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, delta=0.5)
+

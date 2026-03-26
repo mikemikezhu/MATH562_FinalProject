@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from sklearn.datasets import fetch_openml
 from torchvision.datasets import CIFAR10
-from regimes import BaseRegime
+from component2.regimes import BaseRegime
 import numpy as np
 
 
@@ -15,7 +15,7 @@ class AbstractDataGenerator(ABC):
 class SyntheticDataGenerator(AbstractDataGenerator):
 
     def __init__(self, logger):
-        super().__init__(logger)
+        super().__init__()
         self.logger = logger
 
     def make_dataset(self, **kwargs):

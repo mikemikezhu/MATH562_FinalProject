@@ -161,7 +161,7 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
 # Experiment 2 - Effect of randomness in SGD
 ###############################################################################
 
-def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
+def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
 
     empirical_risk_hist = []
     true_risk_hist = []
@@ -174,12 +174,23 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     permutation = np.random.permutation(n)
 
+    # Set absolute constant L (for the learning rate gamma(d))
+    U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
+    if step_type == "max":
+        L = S[0]**2
+    
+    elif step_type == "avg":
+        L = np.mean(S**2)
+
+    else:
+        L = 1
+
     for epoch in range(num_epochs):
         for i in range(n):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
+            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
@@ -187,7 +198,7 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
     return empirical_risk_hist, true_risk_hist
 
 
-def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
+def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
 
     empirical_risk_hist = []
     true_risk_hist = []
@@ -198,13 +209,24 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma):
 
     theta = np.random.randn(d) # Random initialization
 
+    # Set absolute constant L (for the learning rate gamma(d))
+    U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
+    if step_type == "max":
+        L = S[0]**2
+    
+    elif step_type == "avg":
+        L = np.mean(S**2)
+
+    else:
+        L = 1
+
     for epoch in range(num_epochs):
         permutation = np.random.permutation(n)
         for i in range(n):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
+            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
@@ -260,4 +282,5 @@ def sgd_momentum_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, s
     Wrapper function
     """
     return sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, delta=0.5)
+
 

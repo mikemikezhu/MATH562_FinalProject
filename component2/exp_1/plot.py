@@ -3,22 +3,20 @@ utils.py — Logging, plotting, and results utilities for MATH562 Experiment 1.
 """
 
 import os
-import json
-import logging
 import numpy as np
 import matplotlib
-matplotlib.use("Agg")   # non-interactive backend — safe for all environments
+
+matplotlib.use("Agg")  # non-interactive backend — safe for all environments
 import matplotlib.pyplot as plt
-from datetime import datetime
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Aesthetics
 # ──────────────────────────────────────────────────────────────────────────────
 
-REGIME_COLORS  = {"NTK": "#1f77b4", "MF": "#ff7f0e", "RF": "#2ca02c"}
-REGIME_LABELS  = {"NTK": "NTK",     "MF": "Mean Field", "RF": "Random Features"}
-ACT_MARKERS    = {"relu": "o",       "erf": "s",          "tanh": "^"}
-ACT_LINESTYLES = {"relu": "-",       "erf": "--",         "tanh": "-."}
+REGIME_COLORS = {"NTK": "#1f77b4", "MF": "#ff7f0e", "RF": "#2ca02c"}
+REGIME_LABELS = {"NTK": "NTK", "MF": "Mean Field", "RF": "Random Features"}
+ACT_MARKERS = {"relu": "o", "erf": "s", "tanh": "^"}
+ACT_LINESTYLES = {"relu": "-", "erf": "--", "tanh": "-."}
 
 plt.rcParams.update({
     "figure.dpi": 120,
@@ -28,103 +26,6 @@ plt.rcParams.update({
     "grid.alpha": 0.3,
     "font.size": 10,
 })
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Logger
-# ──────────────────────────────────────────────────────────────────────────────
-
-def setup_logger(log_dir: str, name: str = "experiment") -> logging.Logger:
-    """
-    Create a logger that writes to both a timestamped file (DEBUG+)
-    and stdout (INFO+).
-
-    Parameters
-    ----------
-    log_dir : directory where the log file is created
-    name    : logger name (also used as file prefix)
-
-    Returns
-    -------
-    logging.Logger
-    """
-    os.makedirs(log_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file  = os.path.join(log_dir, f"{name}_{timestamp}.log")
-
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
-    logger.handlers.clear()   # avoid duplicate handlers on re-runs in notebooks
-
-    # File handler — everything
-    fh = logging.FileHandler(log_file, encoding="utf-8")
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter(
-        "%(asctime)s  [%(levelname)-7s]  %(message)s", datefmt="%H:%M:%S"
-    ))
-
-    # Console handler — INFO and above
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    ch.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
-
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-    logger.info(f"Logging to {log_file}")
-    log_stem = f"{name}_{timestamp}"
-    return logger, log_stem
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Results I/O
-# ──────────────────────────────────────────────────────────────────────────────
-
-def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str:
-    """
-    Serialise the results dict to JSON.
-
-    Keys are (regime, activation, m) tuples → converted to "regime__act__m" strings.
-    The file is named <log_stem>.json so it matches the log and plots for that run.
-    Returns the path of the written file.
-    """
-    os.makedirs(save_dir, exist_ok=True)
-    serialisable = {}
-    for (regime, activation, m), val in results.items():
-        str_key = f"{regime}__{activation}__{m}"
-        serialisable[str_key] = {
-            "regime":           regime,
-            "activation":       activation,
-            "m":                m,
-            "train_losses":     val["train_losses"],
-            "test_losses":      val["test_losses"],
-            "final_train_loss": val["train_losses"][-1],
-            "final_test_loss":  val["test_losses"][-1],
-        }
-    path = os.path.join(save_dir, f"{log_stem}.json")
-    with open(path, "w") as f:
-        json.dump(serialisable, f, indent=2)
-    return path
-
-
-def print_summary_table(results: dict, logger: logging.Logger):
-    """Print a formatted table of final train/test losses for every run."""
-    col_w = 14
-    sep = "─" * (12 + 12 + 8 + col_w * 2 + 6)
-    header = f"{'Regime':<12} {'Activation':<12} {'m':<8} " \
-             f"{'Train Loss':>{col_w}} {'Test Loss':>{col_w}}"
-    logger.info(sep)
-    logger.info("  FINAL LOSSES SUMMARY")
-    logger.info(sep)
-    logger.info(header)
-    logger.info(sep)
-    for key in sorted(results.keys()):
-        regime, activation, m = key
-        trl = results[key]["train_losses"][-1]
-        tel = results[key]["test_losses"][-1]
-        logger.info(
-            f"{regime:<12} {activation:<12} {m:<8} "
-            f"{trl:>{col_w}.6f} {tel:>{col_w}.6f}"
-        )
-    logger.info(sep)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -156,10 +57,10 @@ def plot_training_curves(results: dict, save_dir: str, log_interval: int = 1):
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    regimes     = sorted({k[0] for k in results})
+    regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
-    widths      = sorted({k[2] for k in results})
-    w_colors    = _width_colormap(widths)
+    widths = sorted({k[2] for k in results})
+    w_colors = _width_colormap(widths)
 
     for regime in regimes:
         for activation in activations:
@@ -176,12 +77,12 @@ def plot_training_curves(results: dict, save_dir: str, log_interval: int = 1):
                 key = (regime, activation, m)
                 if key not in results:
                     continue
-                r    = results[key]
+                r = results[key]
                 iters = _iters_axis(r["train_losses"], log_interval)
-                col  = w_colors[m]
+                col = w_colors[m]
                 axes[0].semilogy(iters, r["train_losses"], color=col,
                                  linewidth=1.5, label=f"m={m}")
-                axes[1].semilogy(iters, r["test_losses"],  color=col,
+                axes[1].semilogy(iters, r["test_losses"], color=col,
                                  linewidth=1.5, label=f"m={m}")
 
             for ax, title_ax in zip(axes, ["Training Loss (MSE)", "Test Loss (MSE)"]):
@@ -209,9 +110,9 @@ def plot_test_loss_vs_width(results: dict, save_dir: str):
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    regimes     = sorted({k[0] for k in results})
+    regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
-    widths      = sorted({k[2] for k in results})
+    widths = sorted({k[2] for k in results})
 
     for regime in regimes:
         fig, ax = plt.subplots(figsize=(7, 5))
@@ -260,11 +161,11 @@ def plot_regime_comparison(results: dict, save_dir: str, fixed_m: int = None):
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    widths      = sorted({k[2] for k in results})
+    widths = sorted({k[2] for k in results})
     if fixed_m is None:
         fixed_m = widths[-1]
 
-    regimes     = sorted({k[0] for k in results})
+    regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
 
     for activation in activations:
@@ -278,13 +179,13 @@ def plot_regime_comparison(results: dict, save_dir: str, fixed_m: int = None):
             key = (regime, activation, fixed_m)
             if key not in results:
                 continue
-            r     = results[key]
+            r = results[key]
             iters = np.arange(1, len(r["train_losses"]) + 1)
-            col   = REGIME_COLORS.get(regime, "gray")
-            lbl   = REGIME_LABELS.get(regime, regime)
+            col = REGIME_COLORS.get(regime, "gray")
+            lbl = REGIME_LABELS.get(regime, regime)
             axes[0].semilogy(iters, r["train_losses"], color=col,
                              linewidth=2, label=lbl)
-            axes[1].semilogy(iters, r["test_losses"],  color=col,
+            axes[1].semilogy(iters, r["test_losses"], color=col,
                              linewidth=2, label=lbl)
 
         for ax, title_ax in zip(axes, ["Training Loss (MSE)", "Test Loss (MSE)"]):
@@ -314,9 +215,9 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    regimes     = sorted({k[0] for k in results})
+    regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
-    widths      = sorted({k[2] for k in results})
+    widths = sorted({k[2] for k in results})
 
     n_regimes = len(regimes)
     fig, axes = plt.subplots(1, n_regimes, figsize=(5.5 * n_regimes, 4.0))
@@ -350,7 +251,7 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
             for j in range(len(widths)):
                 if not np.isnan(matrix[i, j]):
                     brightness = matrix[i, j] / (vmax + 1e-12)
-                    txt_color  = "white" if brightness > 0.6 else "black"
+                    txt_color = "white" if brightness > 0.6 else "black"
                     ax.text(j, i, f"{matrix[i, j]:.4f}",
                             ha="center", va="center",
                             fontsize=8, color=txt_color)
@@ -375,18 +276,18 @@ def plot_final_loss_bars(results: dict, save_dir: str):
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    regimes     = sorted({k[0] for k in results})
+    regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
-    widths      = sorted({k[2] for k in results})
+    widths = sorted({k[2] for k in results})
 
     for m in widths:
         fig, ax = plt.subplots(figsize=(9, 4.5))
         ax.set_title(f"Final Test Loss  (m={m})", fontsize=12, fontweight="bold")
 
-        n_act   = len(activations)
-        n_reg   = len(regimes)
-        x       = np.arange(n_act)
-        width_b = 0.8 / n_reg   # bar width
+        n_act = len(activations)
+        n_reg = len(regimes)
+        x = np.arange(n_act)
+        width_b = 0.8 / n_reg  # bar width
 
         for reg_idx, regime in enumerate(regimes):
             vals = []

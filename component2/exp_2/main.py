@@ -1,39 +1,36 @@
 """
-main_exp_1.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
+main.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
 
 Usage examples
 --------------
 # Conservative default run
-python main_exp_1.py
+python main.py
 
 # Custom widths and more iterations
-python main_exp_1.py --m_values 50 100 200 400 800 --n_iters 2000
+python main.py --m_values 50 100 200 400 800 --n_iters 2000
 
 # Single regime / activation for quick testing
-python main_exp_1.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
+python main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
 
 # Override learning rates per regime
-python main_exp_1.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
+python main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
 """
 
 import argparse
 import os
 import time
-import numpy as np
 
-from regimes import NTKRegime, MeanFieldRegime, RandomFeaturesRegime
-from utils import (
+from component2.regimes import NTKRegime, MeanFieldRegime, RandomFeaturesRegime
+from component2.utils import (
     setup_logger,
+)
+from component2.exp_2.plot import plot_training_curves
+from component2.exp_2.save import (
     save_results,
     print_summary_table,
-    plot_training_curves,
-    plot_test_loss_vs_width,
-    plot_regime_comparison,
-    plot_final_loss_heatmap,
-    plot_final_loss_bars,
 )
 
-from data_generator import SyntheticDataGenerator
+from component2.data_generator import SyntheticDataGenerator
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Regime registry
@@ -72,27 +69,34 @@ def parse_args():
                       help="Number of training samples")
     data.add_argument("--n_test", type=int, default=500,
                       help="Number of test samples")
-    data.add_argument("--m_star", type=int, default=20,
+    data.add_argument("--m_star", type=int, default=200,
                       help="Hidden width of the ground-truth network")
-    data.add_argument("--gt_activation", type=str, default="relu",
+    data.add_argument("--gt_activation", type=str, default="tanh",
                       choices=["relu", "erf", "tanh"],
                       help="Activation of the ground-truth network")
+    data.add_argument("--activation", type=str, default="tanh",
+                      choices=["relu", "erf", "tanh"],
+                      help="Activation for the trained networks")
     data.add_argument("--seed", type=int, default=42,
                       help="Global RNG seed")
+    data.add_argument("--beta", type=float, default=1e-3,
+                      help="Base learning rate")
 
     # ── Experiment grid
     grid = p.add_argument_group("Experiment grid")
     grid.add_argument("--m_values", type=int, nargs="+",
-                      default=[100, 200, 400, 800],
+                      default=[100, 200, 400, 800, 1600, 3200],
                       help="List of hidden widths m to sweep over")
-    grid.add_argument("--activations", type=str, nargs="+",
-                      default=["relu", "erf", "tanh"],
-                      choices=["relu", "erf", "tanh"],
-                      help="Activation functions to test")
     grid.add_argument("--regimes", type=str, nargs="+",
                       default=["NTK", "MF", "RF"],
                       choices=["NTK", "MF", "RF"],
                       help="Regimes to include")
+    grid.add_argument("--alphas", type=float, nargs="+",
+                      default=[-0.5, 0.5, 0.0, 1.0, 2.0],
+                      help="Scaling exponents to test: eta = prefactor * beta * m^alpha. ")
+    grid.add_argument("--prefactors", type=float, nargs="+",
+                      default=[0.01, 0.1, 0.5, 1.0],
+                      help="Prefactors to test: eta = prefactor * beta * m^alpha. ")
 
     # ── Training
     train = p.add_argument_group("Training")
@@ -166,14 +170,14 @@ def main():
     args = parse_args()
 
     logs_dir = os.path.join(args.out_dir, "logs")
-    logger, log_stem = setup_logger(logs_dir, name="experiment1")
+    logger, log_stem = setup_logger(logs_dir, name="experiment2")
 
     # Plots live in a subdirectory named after the log file
     plots_dir = os.path.join(args.out_dir, "plots", log_stem)
     os.makedirs(plots_dir, exist_ok=True)
 
     logger.info("=" * 60)
-    logger.info("MATH562 — Experiment 1: Regime Comparison")
+    logger.info("MATH562 — Experiment 2: Learning Rate Scaling Analysis")
     logger.info("=" * 60)
     logger.info(f"Output directory: {os.path.abspath(args.out_dir)}")
     logger.info(f"Plots directory : {os.path.abspath(plots_dir)}")
@@ -184,14 +188,16 @@ def main():
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
     lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
-    total = len(args.regimes) * len(args.activations) * len(args.m_values)
+    total = len(args.regimes) * len(args.m_values) * len(args.alphas) * len(args.prefactors)
 
     logger.info("=" * 60)
     logger.info("EXPERIMENT GRID")
     logger.info("=" * 60)
     logger.info(f"  Regimes    : {args.regimes}")
-    logger.info(f"  Activations: {args.activations}")
     logger.info(f"  Widths m   : {args.m_values}")
+    logger.info(f"  Beta : {args.beta}")
+    logger.info(f"  Alphas : {args.alphas}")
+    logger.info(f"  Prefactors : {args.prefactors}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
     logger.info(f"  LR — NTK={args.lr_ntk}, MF={args.lr_mf}, RF={args.lr_rf}")
     logger.info(f"  Total runs : {total}")
@@ -203,42 +209,43 @@ def main():
 
     for regime in args.regimes:
         lr = lr_map[regime]
-        for activation in args.activations:
-            for m in sorted(args.m_values):
-                run_idx += 1
-                logger.info(
-                    f"[{run_idx}/{total}]  regime={regime}  "
-                    f"activation={activation}  m={m}  lr={lr}"
-                )
-                train_losses, test_losses = run_one(
-                    regime_name=regime,
-                    activation=activation,
-                    m=m,
-                    lr=lr,
-                    n_iters=args.n_iters,
-                    log_every=args.log_every,
-                    X_train=X_train,
-                    y_train=y_train,
-                    X_test=X_test,
-                    y_test=y_test,
-                    seed=args.seed,
-                    logger=logger,
-                )
-                results[(regime, activation, m)] = {
-                    "train_losses": [float(v) for v in train_losses],
-                    "test_losses": [float(v) for v in test_losses],
-                }
+        for alpha in args.alphas:
+            for prefactor in args.prefactors:
+                for m in sorted(args.m_values):
+                    run_idx += 1
+                    logger.info(
+                        f"[{run_idx}/{total}]  regime={regime}  "
+                        f"activation={args.activation}  m={m}  lr={lr}  "
+                        f"beta={args.beta}  alpha={alpha}  prefactor={prefactor}]"
+                    )
 
-            # ── After every (regime, activation) pair: training curves
-            pair_results = {k: v for k, v in results.items()
-                            if k[0] == regime and k[1] == activation}
-            plot_training_curves(pair_results, plots_dir, log_interval=args.log_every)
-            logger.info(f"  Saved curves_{regime}_{activation}.png")
+                    # Test scaling: eta = prefactor * beta * m^alpha
+                    # e.g. eta = beta * m^2 / 100
+                    # Then, prefactor = 0.01, alpha = 2.0
+                    lr = prefactor * args.beta * (m ** alpha)
+                    train_losses, test_losses = run_one(
+                        regime_name=regime,
+                        activation=args.activation,
+                        m=m,
+                        lr=lr,
+                        n_iters=args.n_iters,
+                        log_every=args.log_every,
+                        X_train=X_train,
+                        y_train=y_train,
+                        X_test=X_test,
+                        y_test=y_test,
+                        seed=args.seed,
+                        logger=logger,
+                    )
+                    results[(regime, alpha, prefactor, m)] = {
+                        "train_losses": [float(v) for v in train_losses],
+                        "test_losses": [float(v) for v in test_losses],
+                    }
 
-        # ── After all activations for this regime: width-scaling plot
-        regime_results = {k: v for k, v in results.items() if k[0] == regime}
-        plot_test_loss_vs_width(regime_results, plots_dir)
-        logger.info(f"  Saved width_scaling_{regime}.png")
+            # ── After every (regime, alpha, prefactor) pair: training curves
+            pair_results = {k: v for k, v in results.items() if k[0] == regime and k[1] == alpha and k[2] == prefactor}
+            plot_training_curves(args, pair_results, plots_dir, log_interval=args.log_every)
+            logger.info(f"  Saved curves_{regime}_beta_{args.beta}_alpha_{alpha}_prefactor_{prefactor}.png")
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 

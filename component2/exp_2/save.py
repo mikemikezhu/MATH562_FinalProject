@@ -35,6 +35,65 @@ def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str
     return path
 
 
+def save_variance_results(variance_results: dict, save_dir: str, log_stem: str = "results") -> str:
+    """
+    Save mean-variance results to JSON.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    serialisable = {}
+    for (regime, alpha, prefactor), val in variance_results.items():
+        str_key = f"{regime}__{alpha}__{prefactor}"
+        serialisable[str_key] = {
+            "regime": regime,
+            "alpha": alpha,
+            "prefactor": prefactor,
+            "mean_train_variance": val["mean_train_variance"],
+            "mean_test_variance": val["mean_test_variance"],
+        }
+
+    path = os.path.join(save_dir, f"{log_stem}_variance.json")
+    with open(path, "w") as f:
+        json.dump(serialisable, f, indent=2)
+
+    return path
+
+
+def print_variance_table(variance_results: dict, logger: logging.Logger):
+    """Print a formatted table of mean variance for each scaling."""
+    col_w = 18
+    sep = "─" * (12 + 10 + 12 + col_w * 2 + 8)
+
+    header = (
+        f"{'Regime':<12} "
+        f"{'alpha':<10} "
+        f"{'prefactor':<12} "
+        f"{'Mean Train Var':>{col_w}} "
+        f"{'Mean Test Var':>{col_w}}"
+    )
+
+    logger.info(sep)
+    logger.info("  MEAN VARIANCE SUMMARY")
+    logger.info(sep)
+    logger.info(header)
+    logger.info(sep)
+
+    for key in sorted(variance_results.keys()):
+        regime, alpha, prefactor = key
+        mean_train_var = variance_results[key]["mean_train_variance"]
+        mean_test_var = variance_results[key]["mean_test_variance"]
+
+        logger.info(
+            f"{regime:<12} "
+            f"{alpha:<10.2f} "
+            f"{prefactor:<12.3g} "
+            f"{mean_train_var:>{col_w}.6e} "
+            f"{mean_test_var:>{col_w}.6e}"
+        )
+
+    logger.info(sep)
+
+
 def print_summary_table(results: dict, logger: logging.Logger):
     """Print a formatted table of final train/test losses for every run."""
     col_w = 14

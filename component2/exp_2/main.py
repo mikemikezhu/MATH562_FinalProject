@@ -9,9 +9,12 @@ from component2.utils import (
 from component2.exp_2.plot import plot_training_curves
 from component2.exp_2.save import (
     save_results,
+    save_variance_results,
     print_summary_table,
+    print_variance_table
 )
 
+from component2.exp_2.eval import compute_mean_variance
 from component2.data_generator import SyntheticDataGenerator
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -230,6 +233,11 @@ def main():
             logger.info(f"  Saved curves_{regime}_beta_{args.beta}_alpha_{alpha}_prefactor_{prefactor}.png")
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
+
+    # Calculate mean variance
+    variance_results = compute_mean_variance(results)
+    save_variance_results(variance_results, args.out_dir, log_stem=log_stem)
+    print_variance_table(variance_results, logger)
 
     # ── Summary table
     print_summary_table(results, logger)

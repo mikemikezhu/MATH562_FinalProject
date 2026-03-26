@@ -1,19 +1,19 @@
 """
-main.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
+main_exp_1.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
 
 Usage examples
 --------------
 # Conservative default run
-python main.py
+python main_exp_1.py
 
 # Custom widths and more iterations
-python main.py --m_values 50 100 200 400 800 --n_iters 2000
+python main_exp_1.py --m_values 50 100 200 400 800 --n_iters 2000
 
 # Single regime / activation for quick testing
-python main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
+python main_exp_1.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
 
 # Override learning rates per regime
-python main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
+python main_exp_1.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
 """
 
 import argparse
@@ -41,16 +41,16 @@ from data_generator import SyntheticDataGenerator
 
 REGIME_CLASSES = {
     "NTK": NTKRegime,
-    "MF":  MeanFieldRegime,
-    "RF":  RandomFeaturesRegime,
+    "MF": MeanFieldRegime,
+    "RF": RandomFeaturesRegime,
 }
 
 # Default per-regime learning rates (motivated by Chapter 12 theory:
 #   NTK ~ O(1), MF ~ O(1/m), RF ~ O(1))
 DEFAULT_LR = {
     "NTK": 0.1,
-    "MF":  0.5,
-    "RF":  0.5,
+    "MF": 0.5,
+    "RF": 0.5,
 }
 
 
@@ -66,45 +66,45 @@ def parse_args():
 
     # ── Data / ground-truth
     data = p.add_argument_group("Data & ground-truth network")
-    data.add_argument("--d",        type=int,   default=10,
+    data.add_argument("--d", type=int, default=10,
                       help="Input dimension")
-    data.add_argument("--n",        type=int,   default=3000,
+    data.add_argument("--n", type=int, default=3000,
                       help="Number of training samples")
-    data.add_argument("--n_test",   type=int,   default=500,
+    data.add_argument("--n_test", type=int, default=500,
                       help="Number of test samples")
-    data.add_argument("--m_star",   type=int,   default=20,
+    data.add_argument("--m_star", type=int, default=20,
                       help="Hidden width of the ground-truth network")
     data.add_argument("--gt_activation", type=str, default="relu",
                       choices=["relu", "erf", "tanh"],
                       help="Activation of the ground-truth network")
-    data.add_argument("--seed",     type=int,   default=42,
+    data.add_argument("--seed", type=int, default=42,
                       help="Global RNG seed")
 
     # ── Experiment grid
     grid = p.add_argument_group("Experiment grid")
-    grid.add_argument("--m_values",   type=int, nargs="+",
+    grid.add_argument("--m_values", type=int, nargs="+",
                       default=[100, 200, 400, 800],
                       help="List of hidden widths m to sweep over")
     grid.add_argument("--activations", type=str, nargs="+",
                       default=["relu", "erf", "tanh"],
                       choices=["relu", "erf", "tanh"],
                       help="Activation functions to test")
-    grid.add_argument("--regimes",    type=str, nargs="+",
+    grid.add_argument("--regimes", type=str, nargs="+",
                       default=["NTK", "MF", "RF"],
                       choices=["NTK", "MF", "RF"],
                       help="Regimes to include")
 
     # ── Training
     train = p.add_argument_group("Training")
-    train.add_argument("--n_iters",   type=int,   default=1000,
+    train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--lr_ntk",    type=float, default=DEFAULT_LR["NTK"],
+    train.add_argument("--lr_ntk", type=float, default=DEFAULT_LR["NTK"],
                        help="Learning rate for the NTK regime")
-    train.add_argument("--lr_mf",     type=float, default=DEFAULT_LR["MF"],
+    train.add_argument("--lr_mf", type=float, default=DEFAULT_LR["MF"],
                        help="Learning rate for the MF regime")
-    train.add_argument("--lr_rf",     type=float, default=DEFAULT_LR["RF"],
+    train.add_argument("--lr_rf", type=float, default=DEFAULT_LR["RF"],
                        help="Learning rate for the RF regime")
-    train.add_argument("--log_every", type=int,   default=50,
+    train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
     # ── Output
@@ -113,42 +113,6 @@ def parse_args():
                      help="Root directory for logs, plots, and JSON results")
 
     return p.parse_args()
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Data generation
-# ──────────────────────────────────────────────────────────────────────────────
-
-def make_dataset(args, logger):
-    """Generate train/test splits from a fixed ground-truth two-layer net."""
-    from regimes import BaseRegime
-
-    rng = np.random.default_rng(args.seed)
-
-    logger.info("=" * 60)
-    logger.info("DATA GENERATION")
-    logger.info("=" * 60)
-    logger.info(f"  d={args.d}, n={args.n}, n_test={args.n_test}, "
-                f"m*={args.m_star}, activation={args.gt_activation}")
-
-    # Ground-truth network (fixed, not trained)
-    gt = BaseRegime(d=args.d, m=args.m_star,
-                    activation=args.gt_activation, seed=args.seed)
-
-    # X ~ N(0, I/d)
-    cov = np.eye(args.d) / args.d
-    X_train = rng.multivariate_normal(np.zeros(args.d), cov, size=args.n)
-    X_test  = rng.multivariate_normal(np.zeros(args.d), cov, size=args.n_test)
-
-    y_train = gt.forward(X_train)
-    y_test  = gt.forward(X_test)
-
-    logger.info(f"  X_train: {X_train.shape}   y_train: {y_train.shape}")
-    logger.info(f"  X_test : {X_test.shape}    y_test : {y_test.shape}")
-    logger.info(f"  y_train — mean={y_train.mean():.4f}, std={y_train.std():.4f}")
-    logger.info(f"  Null MSE (predict 0): {float(np.mean(y_test**2)):.6f}")
-
-    return X_train, y_train, X_test, y_test
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -172,9 +136,9 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
 
         if it % log_every == 0 or it == n_iters:
             y_pred_train = model.forward(X_train)
-            y_pred_test  = model.forward(X_test)
+            y_pred_test = model.forward(X_test)
             trl = model.mse_loss(y_train, y_pred_train)
-            tel = model.mse_loss(y_test,  y_pred_test)
+            tel = model.mse_loss(y_test, y_pred_test)
             train_losses.append(trl)
             test_losses.append(tel)
 
@@ -220,7 +184,7 @@ def main():
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
     lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
-    total   = len(args.regimes) * len(args.activations) * len(args.m_values)
+    total = len(args.regimes) * len(args.activations) * len(args.m_values)
 
     logger.info("=" * 60)
     logger.info("EXPERIMENT GRID")
@@ -262,7 +226,7 @@ def main():
                 )
                 results[(regime, activation, m)] = {
                     "train_losses": [float(v) for v in train_losses],
-                    "test_losses":  [float(v) for v in test_losses],
+                    "test_losses": [float(v) for v in test_losses],
                 }
 
             # ── After every (regime, activation) pair: training curves

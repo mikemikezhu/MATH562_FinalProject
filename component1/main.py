@@ -67,7 +67,7 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
 
             if batch_size is None:
                 empirical_risk_hist, true_risk_hist = sgd_algo(
-                    rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size=None
+                    rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type
                 )
             else:
                 empirical_risk_hist, true_risk_hist = sgd_algo(
@@ -152,14 +152,15 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
         L = 1
 
     for epoch in range(num_epochs):
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
         for _ in range(n):
             idx  = np.random.randint(0, n)
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx 
-
-        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
-        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
 
     return empirical_risk_hist, true_risk_hist
 
@@ -193,14 +194,14 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_typ
         L = 1
 
     for epoch in range(num_epochs):
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
         for i in range(n):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
-
-        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
-        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
 
     return empirical_risk_hist, true_risk_hist
 
@@ -228,15 +229,15 @@ def multiple_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_t
         L = 1
 
     for epoch in range(num_epochs):
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
         permutation = np.random.permutation(n)
         for i in range(n):
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
-
-        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
-        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
 
     return empirical_risk_hist, true_risk_hist
 
@@ -269,6 +270,10 @@ def sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, de
         L = 1
 
     for epoch in range(num_epochs):
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
         for _ in range(n):
             
             idx  = np.random.randint(0, n)
@@ -277,9 +282,6 @@ def sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, de
             theta_old = theta.copy()
             theta = theta - 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx + delta * (theta - theta_prev)
             theta_prev = theta_old
-
-        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
-        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
 
     return empirical_risk_hist, true_risk_hist
 

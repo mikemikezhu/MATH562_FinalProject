@@ -42,7 +42,7 @@ def test_scaling_empirical(d_list, rho, sigma2):
 def compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n):
     return 1/2 * (theta_star - theta).T @ cov_a @ (theta_star - theta) + 1/2 * sigma2 * beta_n
 
-def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None):
+def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None, batch_size=None):
 
     """
     Plot the empirical and true risk evolution per epoch
@@ -64,9 +64,16 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
         all_runs_true_risk = []
 
         for run in range(num_runs):
-            empirical_risk_hist, true_risk_hist = sgd_algo(
-                rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type
-            )
+
+            if batch_size is None:
+                empirical_risk_hist, true_risk_hist = sgd_algo(
+                    rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size=None
+                )
+            else:
+                empirical_risk_hist, true_risk_hist = sgd_algo(
+                    rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size
+                )
+            
             all_runs_empirical_risk.append(empirical_risk_hist)
             all_runs_true_risk.append(true_risk_hist)
 
@@ -284,3 +291,43 @@ def sgd_momentum_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, s
     return sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, delta=0.5)
 
 
+###############################################################################
+# Experiment 4 - Small vs large batch sizes
+###############################################################################
+
+def sgd_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size):
+
+    empirical_risk_hist = []
+    true_risk_hist = []
+
+    n = int(d/rho)
+
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+
+    theta = np.random.randn(d) # Random initialization
+
+    # Set absolute constant L (for the learning rate gamma(d))
+    U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
+    if step_type == "max":
+        L = S[0]**2
+    
+    elif step_type == "avg":
+        L = np.mean(S**2)
+
+    else:
+        L = 1
+
+    for epoch in range(num_epochs):
+
+        empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
+        true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+
+        for _ in range(int(n/batch_size(n))):
+            idx  = np.random.choice(n, batch_size(n), replace=False) # Batch
+            a_idx = A[idx, :]
+            b_idx = b[idx]
+
+            grad = (a_idx.T @ (a_idx @ theta - b_idx)) / (batch_size(n) * n)
+            theta -= (gamma(d) / L) * grad
+
+    return empirical_risk_hist, true_risk_hist

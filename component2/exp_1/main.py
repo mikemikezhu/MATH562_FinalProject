@@ -4,16 +4,16 @@ main.py — Experiment 1: Performance Comparison Across Regimes (MATH562)
 Usage examples
 --------------
 # Conservative default run
-python component2/exp_2/main.py
+python component2/exp_1/main.py
 
 # Custom widths and more iterations
-python component2/exp_2/main.py --m_values 50 100 200 400 800 --n_iters 2000
+python component2/exp_1/main.py --m_values 50 100 200 400 800 --n_iters 2000
 
 # Single regime / activation for quick testing
-python component2/exp_2/main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
+python component2/exp_1/main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
 
-# Override learning rates per regime
-python component2/exp_2/main.py --lr_ntk 0.5 --lr_mf 0.01 --lr_rf 1.0
+# Override beta (scales learning rate per regime)
+python component2/exp_1/main.py --beta 0.5
 """
 
 import os
@@ -32,11 +32,10 @@ from component2.utils import (
 )
 
 from component2.exp_1.plot import (
-    plot_training_curves,
-    plot_test_loss_vs_width,
-    plot_regime_comparison,
+    plot_training_curves_grid,
+    plot_regime_comparison_grid,
+    plot_width_scaling_grid,
     plot_final_loss_heatmap,
-    plot_final_loss_bars,
 )
 
 from component2.exp_1.save import (
@@ -55,15 +54,6 @@ REGIME_CLASSES = {
     "MF": MeanFieldRegime,
     "RF": RandomFeaturesRegime,
 }
-
-# Default per-regime learning rates (motivated by Chapter 12 theory:
-#   NTK ~ O(1), MF ~ O(1/m), RF ~ O(1))
-DEFAULT_LR = {
-    "NTK": 0.1,
-    "MF": 0.5,
-    "RF": 0.5,
-}
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
@@ -109,12 +99,8 @@ def parse_args():
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--lr_ntk", type=float, default=DEFAULT_LR["NTK"],
-                       help="Learning rate for the NTK regime")
-    train.add_argument("--lr_mf", type=float, default=DEFAULT_LR["MF"],
-                       help="Learning rate for the MF regime")
-    train.add_argument("--lr_rf", type=float, default=DEFAULT_LR["RF"],
-                       help="Learning rate for the RF regime")
+    train.add_argument("--beta", type=float, default=0.1,
+                       help="LR scale: MF uses beta*m, NTK uses beta, RF uses beta")
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
@@ -130,7 +116,7 @@ def parse_args():
 # Single-run training
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run_one(regime_name, activation, m, lr, n_iters, log_every,
+def run_one(regime_name, activation, m, beta, n_iters, log_every,
             X_train, y_train, X_test, y_test, seed, logger):
     """
     Train one (regime, activation, m) configuration.
@@ -138,6 +124,8 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
     """
     RegimeClass = REGIME_CLASSES[regime_name]
     model = RegimeClass(d=X_train.shape[1], m=m, activation=activation, seed=seed)
+
+    lr = beta * m if regime_name == "MF" else beta
 
     train_losses, test_losses = [], []
     t0 = time.perf_counter()
@@ -194,7 +182,6 @@ def main():
     X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(**vars(args))
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
-    lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
     total = len(args.regimes) * len(args.activations) * len(args.m_values)
 
     logger.info("=" * 60)
@@ -204,7 +191,7 @@ def main():
     logger.info(f"  Activations: {args.activations}")
     logger.info(f"  Widths m   : {args.m_values}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
-    logger.info(f"  LR — NTK={args.lr_ntk}, MF={args.lr_mf}, RF={args.lr_rf}")
+    logger.info(f"  Beta       : {args.beta}  (MF lr=beta*m, NTK/RF lr=beta)")
     logger.info(f"  Total runs : {total}")
     logger.info("")
 
@@ -213,19 +200,18 @@ def main():
     t_start = time.perf_counter()
 
     for regime in args.regimes:
-        lr = lr_map[regime]
         for activation in args.activations:
             for m in sorted(args.m_values):
                 run_idx += 1
                 logger.info(
                     f"[{run_idx}/{total}]  regime={regime}  "
-                    f"activation={activation}  m={m}  lr={lr}"
+                    f"activation={activation}  m={m}  beta={args.beta}"
                 )
                 train_losses, test_losses = run_one(
                     regime_name=regime,
                     activation=activation,
                     m=m,
-                    lr=lr,
+                    beta=args.beta,
                     n_iters=args.n_iters,
                     log_every=args.log_every,
                     X_train=X_train,
@@ -240,16 +226,6 @@ def main():
                     "test_losses": [float(v) for v in test_losses],
                 }
 
-            # ── After every (regime, activation) pair: training curves
-            pair_results = {k: v for k, v in results.items()
-                            if k[0] == regime and k[1] == activation}
-            plot_training_curves(pair_results, plots_dir, log_interval=args.log_every)
-            logger.info(f"  Saved curves_{regime}_{activation}.png")
-
-        # ── After all activations for this regime: width-scaling plot
-        regime_results = {k: v for k, v in results.items() if k[0] == regime}
-        plot_test_loss_vs_width(regime_results, plots_dir)
-        logger.info(f"  Saved width_scaling_{regime}.png")
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 
@@ -263,14 +239,17 @@ def main():
     # ── Summary plots (need full results)
     logger.info("Generating summary plots …")
 
-    plot_regime_comparison(results, plots_dir)
-    logger.info("  [1/3] Regime comparison plots done")
+    plot_training_curves_grid(results, plots_dir, log_interval=args.log_every)
+    logger.info("  [1/4] Training curves grid done")
+
+    plot_regime_comparison_grid(results, plots_dir, log_interval=args.log_every)
+    logger.info("  [2/4] Regime comparison grid done")
+
+    plot_width_scaling_grid(results, plots_dir)
+    logger.info("  [3/4] Width scaling grid done")
 
     plot_final_loss_heatmap(results, plots_dir)
-    logger.info("  [2/3] Heatmap done")
-
-    plot_final_loss_bars(results, plots_dir)
-    logger.info("  [3/3] Bar charts done")
+    logger.info("  [4/4] Heatmap done")
 
     logger.info(f"\nAll plots saved to: {os.path.abspath(plots_dir)}")
     logger.info("Experiment complete.")

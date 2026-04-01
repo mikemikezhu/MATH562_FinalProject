@@ -17,6 +17,13 @@ from component2.exp_3.kernels import compute_kernel
 from component2.exp_3.eval import kernel_trajectory
 from component2.exp_3.save import save_results, save_kernel_matrices, print_summary_table
 
+from component2.exp_3.plot import (
+    plot_kernel_metrics,
+    plot_initial_final_heatmaps,
+    plot_metric_vs_checkpoint_by_width,
+    plot_metric_vs_checkpoint_by_regime,
+)
+
 
 REGIME_CLASSES = {
     "NTK": NTKRegime,
@@ -24,6 +31,7 @@ REGIME_CLASSES = {
     "RF": RandomFeaturesRegime,
 }
 
+#TODO: adjust according to exp2
 DEFAULT_LR = {
     "NTK": 0.1,
     "MF": 0.5,
@@ -62,7 +70,7 @@ def parse_args():
     # ── Experiment grid
     grid = p.add_argument_group("Experiment grid")
     grid.add_argument("--m_values", type=int, nargs="+",
-                      default=[100, 200, 400, 800],
+                      default=[100, 200, 400],
                       help="List of hidden widths m to sweep over")
     grid.add_argument("--activations", type=str, nargs="+",
                       default=["relu", "erf", "tanh"],
@@ -199,10 +207,14 @@ def main():
     logs_dir = os.path.join(args.out_dir, "logs")
     logger, log_stem = setup_logger(logs_dir, name="experiment3")
 
+    plots_dir = os.path.join(args.out_dir, "plots", log_stem)
+    os.makedirs(plots_dir, exist_ok=True)
+
     logger.info("=" * 60)
     logger.info("MATH562 — Experiment 3: Kernel Evolution and Consistency")
     logger.info("=" * 60)
     logger.info(f"Output directory: {os.path.abspath(args.out_dir)}")
+    logger.info(f"Plots directory: {os.path.abspath(plots_dir)}")
 
     synthetic_data_generator = SyntheticDataGenerator(logger)
     X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(
@@ -279,11 +291,31 @@ def main():
                 )
                 results[(regime, activation, m)] = run_result
 
-                # TODO (plots):
-                #   Once plot.py is ready, this is a natural place to make per-run figures:
-                #   - heat map of the current kernel
-                #   - train/test loss curves
-                #   - metric-vs-iteration curves
+    # Plotting
+    # ── Per-run plots
+    plot_kernel_metrics(results, plots_dir)
+    plot_initial_final_heatmaps(results, plots_dir)
+
+    # ── Cross-run comparison plots
+    for regime in args.regimes:
+        for activation in args.activations:
+            plot_metric_vs_checkpoint_by_width(
+                results,
+                plots_dir,
+                regime=regime,
+                activation=activation,
+                metric_name="rel_change",
+            )
+
+    for activation in args.activations:
+        for m in args.m_values:
+            plot_metric_vs_checkpoint_by_regime(
+                results,
+                plots_dir,
+                activation=activation,
+                m=m,
+                metric_name="rel_change",
+            )
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 
@@ -296,18 +328,8 @@ def main():
         kernels_path = save_kernel_matrices(results, args.out_dir, log_stem=log_stem)
         logger.info(f"Kernel matrices saved to: {kernels_path}")
 
-    # TODO (plots):
-    #   After all runs are complete, generate cross-run summary figures here.
-    #   Examples:
-    #   - compare final kernel change across regimes
-    #   - compare final Frobenius norms across widths m
-    #   - compare heat maps at iteration 0 vs final iteration
-
     logger.info("Experiment complete.")
 
 
 if __name__ == "__main__":
     main()
-
-
-# TODO: check learning rates

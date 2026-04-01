@@ -33,14 +33,6 @@ REGIME_CLASSES = {
     "RF": RandomFeaturesRegime,
 }
 
-# Default per-regime learning rates (motivated by Chapter 12 theory:
-#   NTK ~ O(1), MF ~ O(1/m), RF ~ O(1))
-DEFAULT_LR = {
-    "NTK": 0.1,
-    "MF": 0.5,
-    "RF": 0.5,
-}
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
@@ -93,12 +85,6 @@ def parse_args():
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--lr_ntk", type=float, default=DEFAULT_LR["NTK"],
-                       help="Learning rate for the NTK regime")
-    train.add_argument("--lr_mf", type=float, default=DEFAULT_LR["MF"],
-                       help="Learning rate for the MF regime")
-    train.add_argument("--lr_rf", type=float, default=DEFAULT_LR["RF"],
-                       help="Learning rate for the RF regime")
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
@@ -178,7 +164,6 @@ def main():
     X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(**vars(args))
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
-    lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
     total = len(args.regimes) * len(args.m_values) * len(args.alphas) * len(args.prefactors)
 
     logger.info("=" * 60)
@@ -190,7 +175,6 @@ def main():
     logger.info(f"  Alphas : {args.alphas}")
     logger.info(f"  Prefactors : {args.prefactors}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
-    logger.info(f"  LR — NTK={args.lr_ntk}, MF={args.lr_mf}, RF={args.lr_rf}")
     logger.info(f"  Total runs : {total}")
     logger.info("")
 
@@ -199,21 +183,19 @@ def main():
     t_start = time.perf_counter()
 
     for regime in args.regimes:
-        lr = lr_map[regime]
         for alpha in args.alphas:
             for prefactor in args.prefactors:
                 for m in sorted(args.m_values):
                     run_idx += 1
+                    # Test scaling: eta = prefactor * beta * m^alpha
+                    # e.g. eta = beta * m^2 / 100
+                    # Then, prefactor = 0.01, alpha = 2.0
+                    lr = prefactor * args.beta * (m ** alpha)
                     logger.info(
                         f"[{run_idx}/{total}]  regime={regime}  "
                         f"activation={args.activation}  m={m}  lr={lr}  "
                         f"beta={args.beta}  alpha={alpha}  prefactor={prefactor}]"
                     )
-
-                    # Test scaling: eta = prefactor * beta * m^alpha
-                    # e.g. eta = beta * m^2 / 100
-                    # Then, prefactor = 0.01, alpha = 2.0
-                    lr = prefactor * args.beta * (m ** alpha)
                     train_losses, test_losses = run_one(
                         regime_name=regime,
                         activation=args.activation,

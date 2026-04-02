@@ -42,6 +42,74 @@ def test_scaling_empirical(d_list, rho, sigma2):
 def compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n):
     return 1/2 * (theta_star - theta).T @ cov_a @ (theta_star - theta) + 1/2 * sigma2 * beta_n
 
+
+def compute_first_term(n, d, cov_a, sigma2, beta_n):
+    """
+    Computes the first term of the expression s.t. we must choose gamma(d)
+    s.t. this term doesn't vanish.
+    More precisely, computes the squared norm of the gradient of the empirical risk.
+    Goal : find the order of the squared norm of gradient of the empirical risk
+    """
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+    theta = np.random.randn(d)
+
+    return np.linalg.norm(1/(2*n) * A.T @ (A @ theta - b))**2
+
+def compute_second_term(n, d, cov_a, sigma2, beta_n):
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+    theta = np.random.randn(d)
+    
+    grad = 1/(2*n) * A.T @ (A @ theta - b)
+    H = H = 1/(2*n) * A.T @ A  # Hessian
+
+    return grad.T @ H @ grad
+
+
+def compute_third_term_sgd(n, d, cov_a, sigma2, beta_n, num_samples=10000):
+    """
+    Approximate trace(H @ Var(g_t)) by Monte Carlo over num_samples random i's
+    """
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+    theta = np.random.randn(d)
+
+    H = 1/(2*n) * A.T @ A  # Hessian
+
+    gts = np.zeros((num_samples, d))  # store g_t samples
+
+    for k in range(num_samples):
+        idx = np.random.randint(0, n)
+        a_i = A[idx, :]
+        b_i = b[idx]
+        gts[k, :] = (a_i * (np.dot(a_i, theta) - b_i))/n 
+
+    cov_gt = np.cov(gts, rowvar=False)  
+    return np.trace(H @ cov_gt) 
+
+def compute_third_term_batch(n, d, cov_a, sigma2, beta_n, batch_size, num_samples=10000):
+    """
+    Approximate trace(H @ Var(g_t_batch)) by Monte Carlo over num_samples random batches
+    """
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+    theta = np.random.randn(d)
+
+    H = 1/(2*n) * A.T @ A  # Hessian
+
+    gts = np.zeros((num_samples, d))  # store batch gradient samples
+
+    for k in range(num_samples):
+        idx_batch = np.random.choice(n, batch_size, replace=False)  # sample a batch
+        A_batch = A[idx_batch, :]
+        b_batch = b[idx_batch]
+
+        # Batch gradient (scaled by 1/n as in your single-sample version)
+        gts[k, :] = (A_batch.T @ (A_batch @ theta - b_batch)) / (n * batch_size)
+
+    cov_gt = np.cov(gts, rowvar=False)
+    return np.trace(H @ cov_gt)
+
+
+
+
 def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None, batch_size=None):
 
     """

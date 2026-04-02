@@ -271,56 +271,55 @@ def plot_training_curves_grid(results: dict, save_dir: str,
                               log_interval: int = 1,
                               ref_activation: str = "relu"):
     """
-    Grid of training curves for a single reference activation.
+    Grid of training curves, one figure per activation.
     Rows = regimes, cols = (Train Loss, Test Loss), curves coloured by width m.
 
-    Saved as: training_curves_grid.png
+    Saved as: training_curves_grid_{activation}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
     regimes = sorted({k[0] for k in results})
     widths = sorted({k[2] for k in results})
+    activations = sorted({k[1] for k in results})
     w_colors = _width_colormap(widths)
 
-    # Fall back to first available activation if requested one isn't present
-    available_acts = sorted({k[1] for k in results})
-    activation = ref_activation if ref_activation in available_acts else available_acts[0]
-
     n_rows = len(regimes)
-    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
-    if n_rows == 1:
-        axes = [axes]  # keep as list of rows
 
-    fig.suptitle(f"Training Dynamics — {activation} activation",
-                 fontsize=13, fontweight="bold", y=1.01)
+    for activation in activations:
+        fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
+        if n_rows == 1:
+            axes = [axes]  # keep as list of rows
 
-    for row, regime in enumerate(regimes):
-        ax_train, ax_test = axes[row]
-        row_label = REGIME_LABELS.get(regime, regime)
+        fig.suptitle(f"Training Dynamics — {activation} activation",
+                     fontsize=13, fontweight="bold", y=1.01)
 
-        for m in widths:
-            key = (regime, activation, m)
-            if key not in results:
-                continue
-            r = results[key]
-            iters = _iters_axis(r["train_losses"], log_interval)
-            col = w_colors[m]
-            ax_train.semilogy(iters, r["train_losses"], color=col,
-                              linewidth=1.5, label=f"m={m}")
-            ax_test.semilogy(iters, r["test_losses"], color=col,
-                             linewidth=1.5, label=f"m={m}")
+        for row, regime in enumerate(regimes):
+            ax_train, ax_test = axes[row]
+            row_label = REGIME_LABELS.get(regime, regime)
 
-        for ax, title_ax in zip([ax_train, ax_test],
-                                 ["Training Loss (MSE)", "Test Loss (MSE)"]):
-            ax.set_xlabel("Iteration")
-            ax.set_ylabel("MSE (log scale)")
-            ax.set_title(f"{row_label} — {title_ax}")
-            ax.legend(fontsize=8, loc="upper right")
+            for m in widths:
+                key = (regime, activation, m)
+                if key not in results:
+                    continue
+                r = results[key]
+                iters = _iters_axis(r["train_losses"], log_interval)
+                col = w_colors[m]
+                ax_train.semilogy(iters, r["train_losses"], color=col,
+                                  linewidth=1.5, label=f"m={m}")
+                ax_test.semilogy(iters, r["test_losses"], color=col,
+                                 linewidth=1.5, label=f"m={m}")
 
-    plt.tight_layout()
-    fname = os.path.join(save_dir, "training_curves_grid.png")
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+            for ax, title_ax in zip([ax_train, ax_test],
+                                     ["Training Loss (MSE)", "Test Loss (MSE)"]):
+                ax.set_xlabel("Iteration")
+                ax.set_ylabel("MSE (log scale)")
+                ax.set_title(f"{row_label} — {title_ax}")
+                ax.legend(fontsize=8, loc="upper right")
+
+        plt.tight_layout()
+        fname = os.path.join(save_dir, f"training_curves_grid_{activation}.png")
+        fig.savefig(fname, dpi=150, bbox_inches="tight")
+        plt.close(fig)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -330,55 +329,57 @@ def plot_training_curves_grid(results: dict, save_dir: str,
 def plot_regime_comparison_grid(results: dict, save_dir: str,
                                 fixed_m: int = None, log_interval: int = 1):
     """
-    Grid comparing all regimes at a fixed width.
+    Grid comparing all regimes, one figure per width m.
     Rows = activations, cols = (Train Loss, Test Loss), curves coloured by regime.
 
-    Saved as: regime_comparison_grid.png
+    Saved as: regime_comparison_grid_m{m}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
     widths = sorted({k[2] for k in results})
-    if fixed_m is None:
-        fixed_m = widths[-1]
-
     regimes = sorted({k[0] for k in results})
     activations = sorted({k[1] for k in results})
 
+    # If a specific fixed_m is requested, only plot that one; otherwise all widths
+    m_values = [fixed_m] if fixed_m is not None else widths
+
     n_rows = len(activations)
-    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
-    if n_rows == 1:
-        axes = [axes]
 
-    fig.suptitle(f"Regime Comparison at m={fixed_m}",
-                 fontsize=13, fontweight="bold", y=1.01)
+    for m in m_values:
+        fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
+        if n_rows == 1:
+            axes = [axes]
 
-    for row, activation in enumerate(activations):
-        ax_train, ax_test = axes[row]
+        fig.suptitle(f"Regime Comparison at m={m}",
+                     fontsize=13, fontweight="bold", y=1.01)
 
-        for regime in regimes:
-            key = (regime, activation, fixed_m)
-            if key not in results:
-                continue
-            r = results[key]
-            iters = _iters_axis(r["train_losses"], log_interval)
-            col = REGIME_COLORS.get(regime, "gray")
-            lbl = REGIME_LABELS.get(regime, regime)
-            ax_train.semilogy(iters, r["train_losses"], color=col,
-                              linewidth=2, label=lbl)
-            ax_test.semilogy(iters, r["test_losses"], color=col,
-                             linewidth=2, label=lbl)
+        for row, activation in enumerate(activations):
+            ax_train, ax_test = axes[row]
 
-        for ax, title_ax in zip([ax_train, ax_test],
-                                 ["Training Loss (MSE)", "Test Loss (MSE)"]):
-            ax.set_xlabel("Iteration")
-            ax.set_ylabel("MSE (log scale)")
-            ax.set_title(f"{activation} — {title_ax}")
-            ax.legend(fontsize=9)
+            for regime in regimes:
+                key = (regime, activation, m)
+                if key not in results:
+                    continue
+                r = results[key]
+                iters = _iters_axis(r["train_losses"], log_interval)
+                col = REGIME_COLORS.get(regime, "gray")
+                lbl = REGIME_LABELS.get(regime, regime)
+                ax_train.semilogy(iters, r["train_losses"], color=col,
+                                  linewidth=2, label=lbl)
+                ax_test.semilogy(iters, r["test_losses"], color=col,
+                                 linewidth=2, label=lbl)
 
-    plt.tight_layout()
-    fname = os.path.join(save_dir, "regime_comparison_grid.png")
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    plt.close(fig)
+            for ax, title_ax in zip([ax_train, ax_test],
+                                     ["Training Loss (MSE)", "Test Loss (MSE)"]):
+                ax.set_xlabel("Iteration")
+                ax.set_ylabel("MSE (log scale)")
+                ax.set_title(f"{activation} — {title_ax}")
+                ax.legend(fontsize=9)
+
+        plt.tight_layout()
+        fname = os.path.join(save_dir, f"regime_comparison_grid_m{m}.png")
+        fig.savefig(fname, dpi=150, bbox_inches="tight")
+        plt.close(fig)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

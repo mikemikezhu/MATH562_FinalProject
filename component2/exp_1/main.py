@@ -203,9 +203,10 @@ def main():
         for activation in args.activations:
             for m in sorted(args.m_values):
                 run_idx += 1
+                lr = args.beta * m if regime == "MF" else args.beta
                 logger.info(
                     f"[{run_idx}/{total}]  regime={regime}  "
-                    f"activation={activation}  m={m}  beta={args.beta}"
+                    f"activation={activation}  m={m}  beta={args.beta}  lr={lr}"
                 )
                 train_losses, test_losses = run_one(
                     regime_name=regime,

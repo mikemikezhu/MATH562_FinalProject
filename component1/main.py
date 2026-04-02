@@ -42,6 +42,20 @@ def test_scaling_empirical(d_list, rho, sigma2):
 def compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n):
     return 1/2 * (theta_star - theta).T @ cov_a @ (theta_star - theta) + 1/2 * sigma2 * beta_n
 
+def compute_eigenval(n, d, cov_a, sigma2, beta_n):
+    """"
+    Used to test how max eigenvalues scale with d
+    """
+
+    A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
+
+    matrix =  A.T @ A
+
+    eigenvalues, eigenvectors = np.linalg.eigh(matrix)
+
+    return np.max(eigenvalues)
+
+
 
 def compute_first_term(n, d, cov_a, sigma2, beta_n):
     """
@@ -256,7 +270,7 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_typ
         L = S[0]**2
     
     elif step_type == "avg":
-        L = np.mean(S**2)
+        L = 1/n * np.mean(S**2)
 
     else:
         L = 1

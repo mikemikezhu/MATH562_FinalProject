@@ -53,14 +53,14 @@ def compute_first_term(n, d, cov_a, sigma2, beta_n):
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
     theta = np.random.randn(d)
 
-    return np.linalg.norm(1/(2*n) * A.T @ (A @ theta - b))**2
+    return np.linalg.norm(1/n * A.T @ (A @ theta - b))**2
 
 def compute_second_term(n, d, cov_a, sigma2, beta_n):
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
     theta = np.random.randn(d)
     
-    grad = 1/(2*n) * A.T @ (A @ theta - b)
-    H = H = 1/(2*n) * A.T @ A  # Hessian
+    grad = 1/n * A.T @ (A @ theta - b)
+    H = H = 1/n * A.T @ A  # Hessian
 
     return grad.T @ H @ grad
 
@@ -72,7 +72,7 @@ def compute_third_term_sgd(n, d, cov_a, sigma2, beta_n, num_samples=10000):
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
     theta = np.random.randn(d)
 
-    H = 1/(2*n) * A.T @ A  # Hessian
+    H = 1/n * A.T @ A  # Hessian
 
     gts = np.zeros((num_samples, d))  # store g_t samples
 

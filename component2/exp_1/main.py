@@ -26,6 +26,8 @@ if PROJECT_ROOT not in sys.path:
 import argparse
 import time
 
+import numpy as np
+
 from component2.regimes import NTKRegime, MeanFieldRegime, RandomFeaturesRegime
 from component2.utils import (
     setup_logger,
@@ -43,7 +45,7 @@ from component2.exp_1.save import (
     print_summary_table,
 )
 
-from component2.data_generator import SyntheticDataGenerator
+from component2.data_generator import SyntheticDataGenerator, MNISTDataGenerator, CIFAR10DataGenerator
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Regime registry
@@ -67,12 +69,20 @@ def parse_args():
 
     # ── Data / ground-truth
     data = p.add_argument_group("Data & ground-truth network")
+    data.add_argument("--dataset", type=str, default="synthetic",
+                      choices=["synthetic", "mnist", "cifar10"],
+                      help="Dataset to use")
+    data.add_argument("--classes", type=int, nargs=2, default=[0, 1],
+                      metavar=("CLASS_A", "CLASS_B"),
+                      help="Two classes for binary classification (mnist/cifar10 only)")
+    data.add_argument("--normalize", action=argparse.BooleanOptionalAction, default=True,
+                      help="Normalize real-data features to zero mean, unit std")
     data.add_argument("--d", type=int, default=10,
-                      help="Input dimension")
-    data.add_argument("--n", type=int, default=3000,
-                      help="Number of training samples")
-    data.add_argument("--n_test", type=int, default=500,
-                      help="Number of test samples")
+                      help="Input dimension (synthetic only; derived from data for real datasets)")
+    data.add_argument("--n", type=int, default=None,
+                      help="Training samples. Defaults: 3000 (synthetic), 5000 (real)")
+    data.add_argument("--n_test", type=int, default=None,
+                      help="Test samples. Defaults: 500 (synthetic), 1250 (real)")
     data.add_argument("--m_star", type=int, default=20,
                       help="Hidden width of the ground-truth network")
     data.add_argument("--gt_activation", type=str, default="relu",
@@ -117,10 +127,12 @@ def parse_args():
 # ──────────────────────────────────────────────────────────────────────────────
 
 def run_one(regime_name, activation, m, beta, n_iters, log_every,
-            X_train, y_train, X_test, y_test, seed, logger):
+            X_train, y_train, X_test, y_test, seed, logger,
+            is_classification=False):
     """
     Train one (regime, activation, m) configuration.
-    Returns dicts of per-checkpoint train and test losses.
+    Returns (train_losses, test_losses, train_accs, test_accs).
+    train_accs/test_accs are populated only when is_classification=True.
     """
     RegimeClass = REGIME_CLASSES[regime_name]
     model = RegimeClass(d=X_train.shape[1], m=m, activation=activation, seed=seed)
@@ -128,6 +140,7 @@ def run_one(regime_name, activation, m, beta, n_iters, log_every,
     lr = beta * m if regime_name == "MF" else beta
 
     train_losses, test_losses = [], []
+    train_accs, test_accs = [], []
     t0 = time.perf_counter()
 
     for it in range(1, n_iters + 1):
@@ -142,19 +155,39 @@ def run_one(regime_name, activation, m, beta, n_iters, log_every,
             test_losses.append(tel)
 
             elapsed = time.perf_counter() - t0
-            logger.debug(
-                f"  [{regime_name:3s}|{activation:4s}|m={m:4d}] "
-                f"iter {it:5d}/{n_iters}  "
-                f"train={trl:.6f}  test={tel:.6f}  ({elapsed:.1f}s)"
-            )
+            if is_classification:
+                acc_train = float(np.mean((y_pred_train >= 0.5) == y_train))
+                acc_test  = float(np.mean((y_pred_test  >= 0.5) == y_test))
+                train_accs.append(acc_train)
+                test_accs.append(acc_test)
+                logger.debug(
+                    f"  [{regime_name:3s}|{activation:4s}|m={m:4d}] "
+                    f"iter {it:5d}/{n_iters}  "
+                    f"train={trl:.6f}  test={tel:.6f}  "
+                    f"acc_train={acc_train:.4f}  acc_test={acc_test:.4f}  ({elapsed:.1f}s)"
+                )
+            else:
+                logger.debug(
+                    f"  [{regime_name:3s}|{activation:4s}|m={m:4d}] "
+                    f"iter {it:5d}/{n_iters}  "
+                    f"train={trl:.6f}  test={tel:.6f}  ({elapsed:.1f}s)"
+                )
 
     elapsed = time.perf_counter() - t0
-    logger.info(
-        f"  DONE  [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
-        f"train={train_losses[-1]:.6f}  test={test_losses[-1]:.6f}  "
-        f"({elapsed:.1f}s)"
-    )
-    return train_losses, test_losses
+    if is_classification:
+        logger.info(
+            f"  DONE  [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
+            f"train={train_losses[-1]:.6f}  test={test_losses[-1]:.6f}  "
+            f"acc_train={train_accs[-1]:.4f}  acc_test={test_accs[-1]:.4f}  "
+            f"({elapsed:.1f}s)"
+        )
+    else:
+        logger.info(
+            f"  DONE  [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
+            f"train={train_losses[-1]:.6f}  test={test_losses[-1]:.6f}  "
+            f"({elapsed:.1f}s)"
+        )
+    return train_losses, test_losses, train_accs, test_accs
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -178,8 +211,28 @@ def main():
     logger.info(f"Plots directory : {os.path.abspath(plots_dir)}")
 
     # ── Data
-    synthetic_data_generator = SyntheticDataGenerator(logger)
-    X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(**vars(args))
+    if args.n is None:
+        args.n = 3000 if args.dataset == "synthetic" else 4000
+    if args.n_test is None:
+        args.n_test = 500 if args.dataset == "synthetic" else 1000
+
+    is_classification = args.dataset != "synthetic"
+
+    if args.dataset == "synthetic":
+        gen = SyntheticDataGenerator(logger)
+        X_train, y_train, X_test, y_test = gen.make_dataset(**vars(args))
+    elif args.dataset == "mnist":
+        gen = MNISTDataGenerator(logger)
+        X_train, y_train, X_test, y_test = gen.make_dataset(
+            seed=args.seed, classes=tuple(args.classes),
+            n=args.n, n_test=args.n_test, normalize=args.normalize,
+        )
+    elif args.dataset == "cifar10":
+        gen = CIFAR10DataGenerator(logger)
+        X_train, y_train, X_test, y_test = gen.make_dataset(
+            seed=args.seed, classes=tuple(args.classes),
+            n=args.n, n_test=args.n_test, normalize=args.normalize,
+        )
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
     total = len(args.regimes) * len(args.activations) * len(args.m_values)
@@ -187,6 +240,8 @@ def main():
     logger.info("=" * 60)
     logger.info("EXPERIMENT GRID")
     logger.info("=" * 60)
+    logger.info(f"  Dataset    : {args.dataset}"
+                + (f"  classes={args.classes}" if is_classification else ""))
     logger.info(f"  Regimes    : {args.regimes}")
     logger.info(f"  Activations: {args.activations}")
     logger.info(f"  Widths m   : {args.m_values}")
@@ -208,7 +263,7 @@ def main():
                     f"[{run_idx}/{total}]  regime={regime}  "
                     f"activation={activation}  m={m}  beta={args.beta}  lr={lr}"
                 )
-                train_losses, test_losses = run_one(
+                train_losses, test_losses, train_accs, test_accs = run_one(
                     regime_name=regime,
                     activation=activation,
                     m=m,
@@ -221,11 +276,16 @@ def main():
                     y_test=y_test,
                     seed=args.seed,
                     logger=logger,
+                    is_classification=is_classification,
                 )
-                results[(regime, activation, m)] = {
+                entry = {
                     "train_losses": [float(v) for v in train_losses],
                     "test_losses": [float(v) for v in test_losses],
                 }
+                if is_classification:
+                    entry["train_accs"] = [float(v) for v in train_accs]
+                    entry["test_accs"] = [float(v) for v in test_accs]
+                results[(regime, activation, m)] = entry
 
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")

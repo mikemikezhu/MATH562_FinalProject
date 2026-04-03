@@ -121,7 +121,10 @@ def compute_third_term_batch(n, d, cov_a, sigma2, beta_n, batch_size, num_sample
     cov_gt = np.cov(gts, rowvar=False)
     return np.trace(H @ cov_gt)
 
-
+def spiked_covariance(d, alpha):
+    v = np.random.randn(d)
+    v /= np.linalg.norm(v)
+    return np.eye(d) + alpha * np.outer(v, v)
 
 
 def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None, batch_size=None):

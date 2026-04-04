@@ -152,7 +152,7 @@ def plot_test_loss_vs_width(results: dict, save_dir: str):
 # Plot 3 — Regime comparison at fixed m
 # ──────────────────────────────────────────────────────────────────────────────
 
-def plot_regime_comparison(results: dict, save_dir: str, fixed_m: int = None):
+def plot_regime_comparison(results: dict, save_dir: str, fixed_m: int = None, log_interval: int = 1):
     """
     At a fixed width (default: largest available), compare all three regimes.
     One figure per activation, two panels: train loss / test loss vs iteration.
@@ -180,7 +180,7 @@ def plot_regime_comparison(results: dict, save_dir: str, fixed_m: int = None):
             if key not in results:
                 continue
             r = results[key]
-            iters = np.arange(1, len(r["train_losses"]) + 1)
+            iters = _iters_axis(r["train_losses"], log_interval)
             col = REGIME_COLORS.get(regime, "gray")
             lbl = REGIME_LABELS.get(regime, regime)
             axes[0].semilogy(iters, r["train_losses"], color=col,
@@ -259,6 +259,175 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
     fig.suptitle("Final Test Loss Heatmap", fontsize=13, fontweight="bold")
     plt.tight_layout()
     fname = os.path.join(save_dir, "heatmap_final_test_loss.png")
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Report Figure 1 — Training curves grid (regimes × train/test)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def plot_training_curves_grid(results: dict, save_dir: str,
+                              log_interval: int = 1,
+                              ref_activation: str = "relu"):
+    """
+    Grid of training curves for a single reference activation.
+    Rows = regimes, cols = (Train Loss, Test Loss), curves coloured by width m.
+
+    Saved as: training_curves_grid.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    regimes = sorted({k[0] for k in results})
+    widths = sorted({k[2] for k in results})
+    w_colors = _width_colormap(widths)
+
+    # Fall back to first available activation if requested one isn't present
+    available_acts = sorted({k[1] for k in results})
+    activation = ref_activation if ref_activation in available_acts else available_acts[0]
+
+    n_rows = len(regimes)
+    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
+    if n_rows == 1:
+        axes = [axes]  # keep as list of rows
+
+    fig.suptitle(f"Training Dynamics — {activation} activation",
+                 fontsize=13, fontweight="bold", y=1.01)
+
+    for row, regime in enumerate(regimes):
+        ax_train, ax_test = axes[row]
+        row_label = REGIME_LABELS.get(regime, regime)
+
+        for m in widths:
+            key = (regime, activation, m)
+            if key not in results:
+                continue
+            r = results[key]
+            iters = _iters_axis(r["train_losses"], log_interval)
+            col = w_colors[m]
+            ax_train.semilogy(iters, r["train_losses"], color=col,
+                              linewidth=1.5, label=f"m={m}")
+            ax_test.semilogy(iters, r["test_losses"], color=col,
+                             linewidth=1.5, label=f"m={m}")
+
+        for ax, title_ax in zip([ax_train, ax_test],
+                                 ["Training Loss (MSE)", "Test Loss (MSE)"]):
+            ax.set_xlabel("Iteration")
+            ax.set_ylabel("MSE (log scale)")
+            ax.set_title(f"{row_label} — {title_ax}")
+            ax.legend(fontsize=8, loc="upper right")
+
+    plt.tight_layout()
+    fname = os.path.join(save_dir, "training_curves_grid.png")
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Report Figure 2 — Regime comparison grid (activations × train/test)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def plot_regime_comparison_grid(results: dict, save_dir: str,
+                                fixed_m: int = None, log_interval: int = 1):
+    """
+    Grid comparing all regimes at a fixed width.
+    Rows = activations, cols = (Train Loss, Test Loss), curves coloured by regime.
+
+    Saved as: regime_comparison_grid.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    widths = sorted({k[2] for k in results})
+    if fixed_m is None:
+        fixed_m = widths[-1]
+
+    regimes = sorted({k[0] for k in results})
+    activations = sorted({k[1] for k in results})
+
+    n_rows = len(activations)
+    fig, axes = plt.subplots(n_rows, 2, figsize=(13, 4.5 * n_rows), sharey=False)
+    if n_rows == 1:
+        axes = [axes]
+
+    fig.suptitle(f"Regime Comparison at m={fixed_m}",
+                 fontsize=13, fontweight="bold", y=1.01)
+
+    for row, activation in enumerate(activations):
+        ax_train, ax_test = axes[row]
+
+        for regime in regimes:
+            key = (regime, activation, fixed_m)
+            if key not in results:
+                continue
+            r = results[key]
+            iters = _iters_axis(r["train_losses"], log_interval)
+            col = REGIME_COLORS.get(regime, "gray")
+            lbl = REGIME_LABELS.get(regime, regime)
+            ax_train.semilogy(iters, r["train_losses"], color=col,
+                              linewidth=2, label=lbl)
+            ax_test.semilogy(iters, r["test_losses"], color=col,
+                             linewidth=2, label=lbl)
+
+        for ax, title_ax in zip([ax_train, ax_test],
+                                 ["Training Loss (MSE)", "Test Loss (MSE)"]):
+            ax.set_xlabel("Iteration")
+            ax.set_ylabel("MSE (log scale)")
+            ax.set_title(f"{activation} — {title_ax}")
+            ax.legend(fontsize=9)
+
+    plt.tight_layout()
+    fname = os.path.join(save_dir, "regime_comparison_grid.png")
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Report Figure 3 — Width scaling grid (one subplot per regime)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def plot_width_scaling_grid(results: dict, save_dir: str):
+    """
+    Side-by-side log-log plots of final test loss vs width, one per regime.
+    Lines coloured/styled by activation function.
+
+    Saved as: width_scaling_grid.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    regimes = sorted({k[0] for k in results})
+    activations = sorted({k[1] for k in results})
+    widths = sorted({k[2] for k in results})
+
+    n_cols = len(regimes)
+    fig, axes = plt.subplots(1, n_cols, figsize=(7 * n_cols, 5), sharey=False)
+    if n_cols == 1:
+        axes = [axes]
+
+    fig.suptitle("Final Test Loss vs Width", fontsize=13, fontweight="bold")
+
+    for ax, regime in zip(axes, regimes):
+        ax.set_title(REGIME_LABELS.get(regime, regime), fontweight="bold")
+        for activation in activations:
+            ms, losses = [], []
+            for m in widths:
+                key = (regime, activation, m)
+                if key in results:
+                    ms.append(m)
+                    losses.append(results[key]["test_losses"][-1])
+            if ms:
+                ax.loglog(
+                    ms, losses,
+                    marker=ACT_MARKERS.get(activation, "o"),
+                    linestyle=ACT_LINESTYLES.get(activation, "-"),
+                    linewidth=1.8, markersize=7,
+                    label=activation,
+                )
+        ax.set_xlabel("Width m")
+        ax.set_ylabel("Final Test MSE")
+        ax.legend()
+
+    plt.tight_layout()
+    fname = os.path.join(save_dir, "width_scaling_grid.png")
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
 

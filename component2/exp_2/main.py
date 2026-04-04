@@ -23,6 +23,8 @@ from component2.exp_2.save import (
 from component2.exp_2.eval import compute_mean_variance
 from component2.data_generator import SyntheticDataGenerator
 
+#  python component2/exp_2/main.py --beta 1000 --activation rel
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Regime registry
 # ──────────────────────────────────────────────────────────────────────────────
@@ -33,12 +35,28 @@ REGIME_CLASSES = {
     "RF": RandomFeaturesRegime,
 }
 
-# Default per-regime learning rates (motivated by Chapter 12 theory:
-#   NTK ~ O(1), MF ~ O(1/m), RF ~ O(1))
-DEFAULT_LR = {
-    "NTK": 0.1,
-    "MF": 0.5,
-    "RF": 0.5,
+# Test scaling: eta = prefactor * beta * m^alpha
+# e.g. eta = beta * m^2 / 100
+# Then, prefactor = 0.01, alpha = 2.0
+EXP_SETTINGS = {
+    "MF": [
+        {"alpha": 0.0, "prefactor": 1.0},
+        {"alpha": 0.5, "prefactor": 1.0},
+        {"alpha": 1.0, "prefactor": 1.0},
+        {"alpha": 2.0, "prefactor": 0.01}  # MF with m^2 scaling is often too large, so we reduce it by a factor
+    ],
+    "NTK": [
+        {"alpha": 0.0, "prefactor": 1.0},
+        {"alpha": 0.5, "prefactor": 0.5},
+        {"alpha": 1.0, "prefactor": 0.1},
+        {"alpha": -0.5, "prefactor": 1.0}
+    ],
+    "RF": [
+        {"alpha": 0.0, "prefactor": 1.0},
+        {"alpha": 0.5, "prefactor": 0.5},
+        {"alpha": 1.0, "prefactor": 0.1},
+        {"alpha": -0.5, "prefactor": 1.0}
+    ]
 }
 
 
@@ -70,7 +88,7 @@ def parse_args():
                       help="Activation for the trained networks")
     data.add_argument("--seed", type=int, default=42,
                       help="Global RNG seed")
-    data.add_argument("--beta", type=float, default=1e-3,
+    data.add_argument("--beta", type=float, default=0.1,
                       help="Base learning rate")
 
     # ── Experiment grid
@@ -82,23 +100,11 @@ def parse_args():
                       default=["NTK", "MF", "RF"],
                       choices=["NTK", "MF", "RF"],
                       help="Regimes to include")
-    grid.add_argument("--alphas", type=float, nargs="+",
-                      default=[-0.5, 0.5, 0.0, 1.0, 2.0],
-                      help="Scaling exponents to test: eta = prefactor * beta * m^alpha. ")
-    grid.add_argument("--prefactors", type=float, nargs="+",
-                      default=[0.01, 0.1, 0.5, 1.0],
-                      help="Prefactors to test: eta = prefactor * beta * m^alpha. ")
 
     # ── Training
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--lr_ntk", type=float, default=DEFAULT_LR["NTK"],
-                       help="Learning rate for the NTK regime")
-    train.add_argument("--lr_mf", type=float, default=DEFAULT_LR["MF"],
-                       help="Learning rate for the MF regime")
-    train.add_argument("--lr_rf", type=float, default=DEFAULT_LR["RF"],
-                       help="Learning rate for the RF regime")
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
@@ -178,8 +184,7 @@ def main():
     X_train, y_train, X_test, y_test = synthetic_data_generator.make_dataset(**vars(args))
 
     # ── Experiment loop (plots emitted as soon as each slice is complete)
-    lr_map = {"NTK": args.lr_ntk, "MF": args.lr_mf, "RF": args.lr_rf}
-    total = len(args.regimes) * len(args.m_values) * len(args.alphas) * len(args.prefactors)
+    total = len(args.regimes) * len(args.m_values) * 4
 
     logger.info("=" * 60)
     logger.info("EXPERIMENT GRID")
@@ -187,10 +192,8 @@ def main():
     logger.info(f"  Regimes    : {args.regimes}")
     logger.info(f"  Widths m   : {args.m_values}")
     logger.info(f"  Beta : {args.beta}")
-    logger.info(f"  Alphas : {args.alphas}")
-    logger.info(f"  Prefactors : {args.prefactors}")
+    logger.info(f"  Settings : {EXP_SETTINGS}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
-    logger.info(f"  LR — NTK={args.lr_ntk}, MF={args.lr_mf}, RF={args.lr_rf}")
     logger.info(f"  Total runs : {total}")
     logger.info("")
 
@@ -199,41 +202,42 @@ def main():
     t_start = time.perf_counter()
 
     for regime in args.regimes:
-        lr = lr_map[regime]
-        for alpha in args.alphas:
-            for prefactor in args.prefactors:
-                for m in sorted(args.m_values):
-                    run_idx += 1
-                    logger.info(
-                        f"[{run_idx}/{total}]  regime={regime}  "
-                        f"activation={args.activation}  m={m}  lr={lr}  "
-                        f"beta={args.beta}  alpha={alpha}  prefactor={prefactor}]"
-                    )
+        # Test scaling: eta = prefactor * beta * m^alpha
+        # e.g. eta = beta * m^2 / 100
+        # Then, prefactor = 0.01, alpha = 2.0
+        settings = EXP_SETTINGS[regime]
+        for s in settings:
+            alpha = s["alpha"]
+            prefactor = s["prefactor"]
+            logger.info(f"====== Experiment: learning_rate = {prefactor} * beta * m^{alpha}  (regime={regime}) ======")
+            for m in sorted(args.m_values):
+                run_idx += 1
+                lr = prefactor * args.beta * (m ** alpha)
+                logger.info(
+                    f"[{run_idx}/{total}]  regime={regime}  "
+                    f"activation={args.activation}  m={m}  lr={lr}  "
+                    f"beta={args.beta}  alpha={alpha}  prefactor={prefactor}]"
+                )
+                train_losses, test_losses = run_one(
+                    regime_name=regime,
+                    activation=args.activation,
+                    m=m,
+                    lr=lr,
+                    n_iters=args.n_iters,
+                    log_every=args.log_every,
+                    X_train=X_train,
+                    y_train=y_train,
+                    X_test=X_test,
+                    y_test=y_test,
+                    seed=args.seed,
+                    logger=logger,
+                )
+                results[(regime, alpha, prefactor, m)] = {
+                    "train_losses": [float(v) for v in train_losses],
+                    "test_losses": [float(v) for v in test_losses],
+                }
 
-                    # Test scaling: eta = prefactor * beta * m^alpha
-                    # e.g. eta = beta * m^2 / 100
-                    # Then, prefactor = 0.01, alpha = 2.0
-                    lr = prefactor * args.beta * (m ** alpha)
-                    train_losses, test_losses = run_one(
-                        regime_name=regime,
-                        activation=args.activation,
-                        m=m,
-                        lr=lr,
-                        n_iters=args.n_iters,
-                        log_every=args.log_every,
-                        X_train=X_train,
-                        y_train=y_train,
-                        X_test=X_test,
-                        y_test=y_test,
-                        seed=args.seed,
-                        logger=logger,
-                    )
-                    results[(regime, alpha, prefactor, m)] = {
-                        "train_losses": [float(v) for v in train_losses],
-                        "test_losses": [float(v) for v in test_losses],
-                    }
-
-            # ── After every (regime, alpha, prefactor) pair: training curves
+            # ── After every (regime, setting) pair: training curves
             pair_results = {k: v for k, v in results.items() if k[0] == regime and k[1] == alpha and k[2] == prefactor}
             plot_training_curves(args, pair_results, plots_dir, log_interval=args.log_every)
             logger.info(f"  Saved curves_{regime}_beta_{args.beta}_alpha_{alpha}_prefactor_{prefactor}.png")

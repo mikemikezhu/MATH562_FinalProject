@@ -56,7 +56,6 @@ def compute_eigenval(n, d, cov_a, sigma2, beta_n):
     return np.max(eigenvalues)
 
 
-
 def compute_first_term(n, d, cov_a, sigma2, beta_n):
     """
     Computes the first term of the expression s.t. we must choose gamma(d)
@@ -74,7 +73,7 @@ def compute_second_term(n, d, cov_a, sigma2, beta_n):
     theta = np.random.randn(d)
     
     grad = 1/n * A.T @ (A @ theta - b)
-    H = H = 1/n * A.T @ A  # Hessian
+    H = 1/n * A.T @ A  # Hessian
 
     return grad.T @ H @ grad
 
@@ -106,7 +105,7 @@ def compute_third_term_batch(n, d, cov_a, sigma2, beta_n, batch_size, num_sample
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
     theta = np.random.randn(d)
 
-    H = 1/(2*n) * A.T @ A  # Hessian
+    H = 1/n * A.T @ A  # Hessian
 
     gts = np.zeros((num_samples, d))  # store batch gradient samples
 
@@ -115,16 +114,16 @@ def compute_third_term_batch(n, d, cov_a, sigma2, beta_n, batch_size, num_sample
         A_batch = A[idx_batch, :]
         b_batch = b[idx_batch]
 
-        # Batch gradient (scaled by 1/n as in your single-sample version)
+        # Batch gradient 
         gts[k, :] = (A_batch.T @ (A_batch @ theta - b_batch)) / (n * batch_size)
 
     cov_gt = np.cov(gts, rowvar=False)
     return np.trace(H @ cov_gt)
 
-def spiked_covariance(d, alpha):
-    v = np.random.randn(d)
-    v /= np.linalg.norm(v)
-    return np.eye(d) + alpha * np.outer(v, v)
+def diagonal_spike_cov(d):
+    diag = np.ones(d)
+    diag[-1] = d   # spike in the last coordinate
+    return np.diag(diag)
 
 
 def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None, batch_size=None):
@@ -185,9 +184,8 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
         plt.plot(np.arange(num_epochs), mean, label=f"d={d}")
         plt.fill_between(np.arange(num_epochs), mean - std, mean + std, alpha=0.3)
 
-    plt.xlabel("Num of epochs")
+    plt.xlabel("log(Num of epochs)")
     plt.ylabel("Empirical risk")
-    plt.title("Training error for different d")
     plt.xscale("log")
     plt.yscale("log")
     plt.legend()
@@ -201,9 +199,8 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
         plt.plot(np.arange(num_epochs), mean, label=f"d={d}")
         plt.fill_between(np.arange(num_epochs), mean - std, mean + std, alpha=0.1)
 
-    plt.xlabel("Num of epochs")
+    plt.xlabel("log(Num of epochs)")
     plt.ylabel("True risk")
-    plt.title("True risk for different d")
     plt.yscale("log")
     plt.xscale("log")
     plt.legend()
@@ -418,6 +415,7 @@ def sgd_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch
             theta -= (gamma(d) / L) * grad
 
     return empirical_risk_hist, true_risk_hist
+
 
 ###############################################################################
 # Optional experiment - Repeating experiment 4 but with SGD with momentum

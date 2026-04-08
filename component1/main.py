@@ -93,7 +93,7 @@ def compute_third_term_sgd(n, d, cov_a, sigma2, beta_n, num_samples=10000):
         idx = np.random.randint(0, n)
         a_i = A[idx, :]
         b_i = b[idx]
-        gts[k, :] = (a_i * (np.dot(a_i, theta) - b_i))/n 
+        gts[k, :] = (a_i * (np.dot(a_i, theta) - b_i)) 
 
     cov_gt = np.cov(gts, rowvar=False)  
     return np.trace(H @ cov_gt) 
@@ -115,9 +115,9 @@ def compute_third_term_batch(n, d, cov_a, sigma2, beta_n, batch_size, num_sample
         b_batch = b[idx_batch]
 
         # Batch gradient 
-        gts[k, :] = (A_batch.T @ (A_batch @ theta - b_batch)) / (n * batch_size)
+        gts[k, :] = (A_batch.T @ (A_batch @ theta - b_batch)) / batch_size
 
-    cov_gt = np.cov(gts, rowvar=False)
+    cov_gt = np.cov(gts, rowvar=False, bias=True)
     return np.trace(H @ cov_gt)
 
 def diagonal_spike_cov(d):
@@ -242,7 +242,7 @@ def run_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type):
             idx  = np.random.randint(0, n)
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx 
+            theta -= 1/L * gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx 
 
     return empirical_risk_hist, true_risk_hist
 
@@ -283,7 +283,7 @@ def single_suffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_typ
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
+            theta -= 1/L * gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx
 
     return empirical_risk_hist, true_risk_hist
 
@@ -319,7 +319,7 @@ def multiple_shuffle_sgd(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_
             idx  = permutation[i]
             a_idx = A[idx, :]
             b_idx = b[idx]
-            theta -= 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx
+            theta -= 1/L * gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx
 
     return empirical_risk_hist, true_risk_hist
 
@@ -362,7 +362,7 @@ def sgd_momentum(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, de
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta_old = theta.copy()
-            theta = theta - 1/L * gamma(d) * 1/n * (np.dot(a_idx, theta) - b_idx)* a_idx + delta * (theta - theta_prev)
+            theta = theta - 1/L * gamma(d) * (np.dot(a_idx, theta) - b_idx)* a_idx + delta * (theta - theta_prev)
             theta_prev = theta_old
 
     return empirical_risk_hist, true_risk_hist
@@ -411,8 +411,8 @@ def sgd_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch
             a_idx = A[idx, :]
             b_idx = b[idx]
 
-            grad = (a_idx.T @ (a_idx @ theta - b_idx)) / (batch_size(n) * n)
-            theta -= (gamma(d) / L) * grad
+            g_t = (a_idx.T @ (a_idx @ theta - b_idx)) / batch_size(n)
+            theta -= (gamma(d) / L) * g_t
 
     return empirical_risk_hist, true_risk_hist
 
@@ -455,7 +455,7 @@ def sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_ty
             b_idx = b[idx]
             theta_old = theta.copy()
 
-            grad = (a_idx.T @ (a_idx @ theta - b_idx))* 1/n / (batch_size(n) * n) + delta * (theta - theta_prev)
+            grad = (a_idx.T @ (a_idx @ theta - b_idx)) / (batch_size(n) * n) + delta * (theta - theta_prev)
             theta -= (gamma(d) / L)  * grad
             theta_prev = theta_old
 

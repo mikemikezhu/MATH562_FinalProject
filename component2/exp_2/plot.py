@@ -59,7 +59,10 @@ def _get_scaling_type(alpha, prefactor):
         m_part = rf"m^{{{alpha}}}"
 
     if prefactor == 1.0:
-        return rf"$\eta = \beta \times {m_part}$"
+        if alpha == 0.0:
+            return r"$\eta = \beta$"
+        else:
+            return rf"$\eta = \beta \times {m_part}$"
 
     if alpha == -0.5:
         return rf"$\eta = \frac{{{prefactor}\beta}}{{\sqrt{{m}}}}$"
@@ -93,13 +96,12 @@ def plot_training_curves(args, results: dict, save_dir: str, log_interval: int =
                 if not keys_present:
                     continue
 
-                fig, axes = plt.subplots(1, 2, figsize=(13, 4.5), sharey=False)
+                fig, ax = plt.subplots(figsize=(6.8, 4.8))
 
                 scaling_type = _get_scaling_type(alpha, prefactor)
 
                 title = (rf"{REGIME_LABELS.get(regime, regime)} "
-                         rf"— {scaling_type} "
-                         rf"- Beta: {args.beta}")
+                         rf" {scaling_type}")
                 fig.suptitle(title, fontsize=12, fontweight="bold", y=1.01)
 
                 for m in sorted(widths):
@@ -109,19 +111,16 @@ def plot_training_curves(args, results: dict, save_dir: str, log_interval: int =
                     r = results[key]
                     iters = _iters_axis(r["train_losses"], log_interval)
                     col = w_colors[m]
-                    axes[0].semilogy(iters, r["train_losses"], color=col,
-                                     linewidth=1.5, label=f"m={m}")
-                    axes[1].semilogy(iters, r["test_losses"], color=col,
-                                     linewidth=1.5, label=f"m={m}")
+                    ax.semilogy(iters, r["train_losses"], color=col,
+                                linewidth=1.5, label=f"m={m}")
 
-                for ax, title_ax in zip(axes, ["Training Loss (MSE)", "Test Loss (MSE)"]):
-                    ax.set_xlabel("Iteration")
-                    ax.set_ylabel("MSE (log scale)")
-                    ax.set_title(title_ax)
-                    ax.legend(fontsize=8, loc="upper right")
+                ax.set_xlabel("Iteration")
+                ax.set_ylabel("Training MSE (log scale)")
+                ax.set_title("Training Loss")
+                ax.legend(fontsize=8, loc="best", frameon=True)
 
                 plt.tight_layout()
                 fname = os.path.join(save_dir,
-                                     f"curves_{regime}_beta_{args.beta}_alpha_{alpha}_prefactor_{prefactor}.png")
+                                     f"curves_{regime}_alpha_{alpha}_prefactor_{prefactor}.png")
                 fig.savefig(fname, dpi=150, bbox_inches="tight")
                 plt.close(fig)

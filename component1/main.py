@@ -126,7 +126,7 @@ def diagonal_spike_cov(d):
     return np.diag(diag)
 
 
-def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_hat, step_type=None, batch_size=None):
+def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma,  sigma_hat, xi=None, step_type=None, batch_size=None):
 
     """
     Plot the empirical and true risk evolution per epoch
@@ -149,14 +149,21 @@ def plot_risk(d_list, rho, num_runs, num_epochs, sigma2, sgd_algo, gamma, sigma_
 
         for run in range(num_runs):
 
-            if batch_size is None:
+            if batch_size is None and xi is None:
+                # No batch, no xi
                 empirical_risk_hist, true_risk_hist = sgd_algo(
                     rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type
                 )
             else:
-                empirical_risk_hist, true_risk_hist = sgd_algo(
-                    rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size
-                )
+                # batch_size is given, so xi may also be used
+                if xi is None and batch_size is not None:
+                    empirical_risk_hist, true_risk_hist = sgd_algo(
+                        rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size
+                    )
+                else:
+                    empirical_risk_hist, true_risk_hist = sgd_algo(
+                        rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi
+                    )
             
             all_runs_empirical_risk.append(empirical_risk_hist)
             all_runs_true_risk.append(true_risk_hist)
@@ -421,12 +428,21 @@ def sgd_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch
 # Optional experiment - Repeating experiment 4 but with SGD with momentum
 ###############################################################################
 
-def sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size, delta):
+def sgd_momentum_batch_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi, batch_size=(lambda i:i)):
 
     empirical_risk_hist = []
     true_risk_hist = []
 
     n = int(d/rho)
+
+    delta = 0.5
+
+    #ratio = 0.6
+    #print("delta: " + str(delta))  
+    #print("step_type: " + str(step_type))  
+    #print("xi: " + str(xi))   
+
+    batch_size = lambda i: int(xi* i) # Write batch size in terms of xi
 
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
 
@@ -458,11 +474,4 @@ def sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_ty
             theta_prev = theta_old
 
     return empirical_risk_hist, true_risk_hist
-
-def sgd_momentum_batch_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size):
-    """
-    Wrapper function
-    """
-    return sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch_size, delta=0.5)
-
 

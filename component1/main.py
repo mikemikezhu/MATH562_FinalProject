@@ -454,9 +454,7 @@ def sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_ty
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta_old = theta.copy()
-
-            grad = (a_idx.T @ (a_idx @ theta - b_idx)) / (batch_size(n) * n) + delta * (theta - theta_prev)
-            theta -= (gamma(d) / L)  * grad
+            theta = theta - 1/L * gamma(d) * (a_idx.T @ (a_idx @ theta - b_idx)) / batch_size(n) + delta * (theta - theta_prev)
             theta_prev = theta_old
 
     return empirical_risk_hist, true_risk_hist

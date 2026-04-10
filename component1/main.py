@@ -544,8 +544,8 @@ def estimate_threshold(d_list, delta_list, xi_list, rho, num_epochs, *, gamma, s
                 )
 
                 #results.append(empirical_risk_hist[-1])
-                #results.append(min(empirical_risk_hist[-1], 1.0))
-                results.append(max(min(empirical_risk_hist[-1], 1.0), 0.1))  # Clip final loss between 0.1 and 1.0 for better log scale visualization
+                results.append(min(empirical_risk_hist[-1], 1.0))
+                #results.append(max(min(empirical_risk_hist[-1], 1.0), 0.1))  # Clip final loss between 0.1 and 1.0 for better log scale visualization
 
             plt.plot(xi_list, results, label=f"delta={delta:.2f}")
             plt.yscale("log")   # log scale on y-axis

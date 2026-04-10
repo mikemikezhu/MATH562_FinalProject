@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 
 np.random.seed(1) # Set seed
 
+def kappa_bar(v, eps=1e-12): return np.mean(v) / max(np.min(v), eps)
+
+def kappa(v, eps=1e-12): return np.max(v)/max(np.min(v), eps)
+
+def ICR(v, eps=1e-12): return kappa_bar(v, eps)/((kappa(v, eps)))   
+
 def generate_data(n, d, cov_a, sigma2, beta_n):
     """
     :param cov_a: dxd covariance matrix of a
@@ -428,20 +434,15 @@ def sgd_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, batch
 # Optional experiment - Repeating experiment 4 but with SGD with momentum
 ###############################################################################
 
-def sgd_momentum_batch_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi, batch_size=(lambda i:i)):
+def sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi, delta, batch_size=(lambda i:i)):
 
     empirical_risk_hist = []
     true_risk_hist = []
+    icr_hist = []
+
 
     n = int(d/rho)
-
-    delta = 0.5
-
-    #ratio = 0.6
-    #print("delta: " + str(delta))  
-    #print("step_type: " + str(step_type))  
-    #print("xi: " + str(xi))   
-
+  
     batch_size = lambda i: int(xi* i) # Write batch size in terms of xi
 
     A, b, theta_star = generate_data(n, d, cov_a, sigma2, beta_n)
@@ -451,27 +452,117 @@ def sgd_momentum_batch_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, ga
 
     # Set absolute constant L (for the learning rate gamma(d))
     U, S, Vh = np.linalg.svd(A) # To find the singular values of A^T A (and thus its eigenvalues)
-    if step_type == "max":
-        L = S[0]**2
     
+    if step_type == "max":
+        L = np.max(S**2)
+        #print(L)
     elif step_type == "avg":
         L = np.mean(S**2)
 
     else:
-        L = 1
+        L = 1   
+
+    gamma = lambda d:(d/L)    
+
+
+    
+
 
     for epoch in range(num_epochs):
 
         empirical_risk_hist.append(compute_empirical_risk(A, b, theta))
         true_risk_hist.append(compute_true_risk(theta_star, theta, cov_a, sigma2, beta_n))
+        icr_hist.append(ICR(S**2, eps=1e-12))
 
         for _ in range(int(n/batch_size(n))):
             idx  = np.random.choice(n, batch_size(n), replace=False) # Batch
             a_idx = A[idx, :]
             b_idx = b[idx]
             theta_old = theta.copy()
-            theta = theta - 1/L * gamma(d) * (a_idx.T @ (a_idx @ theta - b_idx)) / batch_size(n) + delta * (theta - theta_prev)
+            theta = theta - gamma(d) * (a_idx.T @ (a_idx @ theta - b_idx)) / batch_size(n) + delta * (theta - theta_prev)
             theta_prev = theta_old
 
+    icr = np.mean(icr_hist)   
+    
+
+    return empirical_risk_hist, true_risk_hist, icr
+
+def sgd_momentum_batch_fixed_delta(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi):
+    empirical_risk_hist, true_risk_hist, _ = sgd_momentum_batch(rho, d, cov_a, sigma2, beta_n, num_epochs, gamma, step_type, xi, 0.5, batch_size=(lambda i:i))
     return empirical_risk_hist, true_risk_hist
 
+
+def estimate_threshold(d_list, delta_list, xi_list, rho, num_epochs, *, gamma, step_type="max"):
+    """
+    Estimate final loss for different xi and delta values using SGD with momentum and batch updates.
+
+    Parameters
+    ----------
+    d_list : list of int
+        List of dimensions
+    delta_list : list of float
+        Momentum parameters
+    xi_list : list of float
+        Batch fractions
+    rho : float
+        Aspect ratio d/n
+    num_epochs : int
+        Number of epochs
+    gamma : callable
+        Learning rate function of d
+    step_type : str
+        "max", "avg", or other
+    """
+    # Run simulations for each delta, xi, and d, and plot final risk 
+
+    sigma2 = 1.0
+    beta_n = 1.0
+
+    for d in d_list:
+
+        n = int(d / rho)
+        alpha_d = 1 / d
+        cov_a = alpha_d * np.eye(d)
+
+        plt.figure(figsize=(12, 6), dpi=150)
+
+        for delta in delta_list:
+            results = []
+
+            for xi in xi_list:
+                empirical_risk_hist, true_risk_hist, icr = sgd_momentum_batch(
+                    rho=rho,
+                    d=d,
+                    cov_a=cov_a,
+                    sigma2=sigma2,
+                    beta_n=beta_n,
+                    num_epochs=num_epochs,
+                    gamma=gamma,
+                    step_type=step_type,
+                    xi=xi,
+                    delta=delta,
+                )
+
+                #results.append(empirical_risk_hist[-1])
+                #results.append(min(empirical_risk_hist[-1], 1.0))
+                results.append(max(min(empirical_risk_hist[-1], 1.0), 0.1))  # Clip final loss between 0.1 and 1.0 for better log scale visualization
+
+            plt.plot(xi_list, results, label=f"delta={delta:.2f}")
+            plt.yscale("log")   # log scale on y-axis
+            if delta == delta_list[-1]:  # Example condition, adjust as needed
+                plt.axvline(x=icr, color='k', linestyle='--', linewidth=1, alpha=0.7, label='ICR='+str(round(icr, 3)))
+
+        plt.xlabel("xi (batch fraction)")
+        plt.ylabel("Final empirical loss")
+        plt.title(f"d={d}, n={n}")
+
+        # Grid with finer resolution
+        plt.grid(which='major', linestyle='-', linewidth=0.8, alpha=0.7)
+        plt.grid(which='minor', linestyle='--', linewidth=0.5, alpha=0.5)
+        plt.minorticks_on()
+
+        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))  # legend outside
+        plt.tight_layout()
+
+        plt.grid(True)
+        plt.show()

@@ -73,3 +73,5 @@ def compute_kernel(model, X: numpy.ndarray, regime: str):
         return compute_ntk_kernel(model, X)
     elif regime == 'MF':
         return compute_mf_kernel(model, X)
+    else:
+        raise ValueError(f"Unknown regime: {regime}")

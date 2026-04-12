@@ -67,26 +67,31 @@ def _width_colormap(widths):
 
 def plot_kernel_metrics(results: dict, save_dir: str):
     """
-    For each (regime, activation, m) run, create a 2x2 figure with:
+    For each (regime, activation, m, beta_scaling) run, create a 2x2 figure with:
       - Frobenius norm vs checkpoint
       - Absolute change vs checkpoint
       - Relative change vs checkpoint
       - Mean kernel value vs checkpoint
 
     Saved as:
-      kernel_metrics_{regime}_{activation}_m{m}.png
+      kernel_metrics_{regime}_{activation}_m{m}_scale_{beta_scaling}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
     for key in sorted(results.keys()):
-        regime, activation, m = key
+        regime, activation, m, beta_scaling = key
         metrics = results[key].get("metrics", {})
         if not metrics:
             continue
 
+        meta = results[key]["metadata"]
+        default_beta = meta["default_beta"]
+        effective_beta = meta["effective_beta"]
+
         fig, axes = plt.subplots(2, 2, figsize=(12, 8))
         fig.suptitle(
-            f"{REGIME_LABELS.get(regime, regime)} — {activation} activation — m={m}",
+            f"{REGIME_LABELS.get(regime, regime)} — {activation} activation — m={m}\n"
+            f"scale={beta_scaling:g}, β0={default_beta:g}, β={effective_beta:g}",
             fontsize=12,
             fontweight="bold",
             y=1.02
@@ -109,9 +114,10 @@ def plot_kernel_metrics(results: dict, save_dir: str):
             ax.set_ylabel(METRIC_LABELS.get(metric_name, metric_name))
 
         plt.tight_layout()
+        scale_str = f"{beta_scaling:g}"
         fname = os.path.join(
             save_dir,
-            f"kernel_metrics_{regime}_{activation}_m{m}.png"
+            f"kernel_metrics_{regime}_{activation}_m{m}_scale_{scale_str}.png"
         )
         fig.savefig(fname, dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -122,13 +128,14 @@ def plot_kernel_metrics(results: dict, save_dir: str):
 # ──────────────────────────────────────────────────────────────────────────────
 
 def plot_kernel_heatmap(K: np.ndarray, checkpoint: int, regime: str,
-                        activation: str, m: int, save_dir: str,
-                        prefix: str = "kernel_heatmap"):
+                        activation: str, m: int, beta_scaling: float,
+                        default_beta: float, effective_beta: float,
+                        save_dir: str, prefix: str = "kernel_heatmap"):
     """
     Plot a single heatmap of the kernel matrix K.
 
     Saved as:
-      {prefix}_{regime}_{activation}_m{m}_ckpt{checkpoint}.png
+      {prefix}_{regime}_{activation}_m{m}_scale_{beta_scaling}_ckpt{checkpoint}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
@@ -137,7 +144,8 @@ def plot_kernel_heatmap(K: np.ndarray, checkpoint: int, regime: str,
     plt.colorbar(im, ax=ax, shrink=0.85, label="Kernel value")
 
     ax.set_title(
-        f"{REGIME_LABELS.get(regime, regime)} — {activation} — m={m} — checkpoint {checkpoint}",
+        f"{REGIME_LABELS.get(regime, regime)} — {activation} — m={m} — checkpoint {checkpoint}\n"
+        f"scale={beta_scaling:g}, β0={default_beta:g}, β={effective_beta:g}",
         fontsize=11,
         fontweight="bold"
     )
@@ -145,9 +153,10 @@ def plot_kernel_heatmap(K: np.ndarray, checkpoint: int, regime: str,
     ax.set_ylabel("Sample index")
 
     plt.tight_layout()
+    scale_str = f"{beta_scaling:g}"
     fname = os.path.join(
         save_dir,
-        f"{prefix}_{regime}_{activation}_m{m}_ckpt{checkpoint}.png"
+        f"{prefix}_{regime}_{activation}_m{m}_scale_{scale_str}_ckpt{checkpoint}.png"
     )
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -159,20 +168,24 @@ def plot_kernel_heatmap(K: np.ndarray, checkpoint: int, regime: str,
 
 def plot_initial_final_heatmaps(results: dict, save_dir: str):
     """
-    For each run, plot side-by-side heatmaps of:
+    For each (regime, activation, m, beta_scaling) run, plot side-by-side heatmaps of:
       - initial kernel K_0
       - final kernel K_T
 
     Saved as:
-      kernel_heatmaps_{regime}_{activation}_m{m}.png
+      kernel_heatmaps_{regime}_{activation}_m{m}_scale_{beta_scaling}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
     for key in sorted(results.keys()):
-        regime, activation, m = key
+        regime, activation, m, beta_scaling = key
         kernels = results[key].get("kernels", {})
         if not kernels:
             continue
+
+        meta = results[key]["metadata"]
+        default_beta = meta["default_beta"]
+        effective_beta = meta["effective_beta"]
 
         checkpoints = sorted(kernels.keys())
         t0 = checkpoints[0]
@@ -183,18 +196,22 @@ def plot_initial_final_heatmaps(results: dict, save_dir: str):
 
         fig, axes = plt.subplots(1, 2, figsize=(11, 4.5))
         fig.suptitle(
-            f"{REGIME_LABELS.get(regime, regime)} — {activation} activation — m={m}",
+            f"{REGIME_LABELS.get(regime, regime)} — {activation} activation — m={m}\n"
+            f"scale={beta_scaling:g}, β0={default_beta:g}, β={effective_beta:g}",
             fontsize=12,
             fontweight="bold",
             y=1.02
         )
 
-        im0 = axes[0].imshow(K0, aspect="auto", cmap="viridis")
+        vmin = min(K0.min(), KT.min())
+        vmax = max(K0.max(), KT.max())
+
+        im0 = axes[0].imshow(K0, aspect="auto", cmap="viridis", vmin=vmin, vmax=vmax)
         axes[0].set_title(f"Initial kernel (checkpoint {t0})")
         axes[0].set_xlabel("Sample index")
         axes[0].set_ylabel("Sample index")
 
-        im1 = axes[1].imshow(KT, aspect="auto", cmap="viridis")
+        im1 = axes[1].imshow(KT, aspect="auto", cmap="viridis", vmin=vmin, vmax=vmax)
         axes[1].set_title(f"Final kernel (checkpoint {tT})")
         axes[1].set_xlabel("Sample index")
         axes[1].set_ylabel("Sample index")
@@ -203,9 +220,10 @@ def plot_initial_final_heatmaps(results: dict, save_dir: str):
         plt.colorbar(im1, ax=axes[1], shrink=0.8)
 
         plt.tight_layout()
+        scale_str = f"{beta_scaling:g}"
         fname = os.path.join(
             save_dir,
-            f"kernel_heatmaps_{regime}_{activation}_m{m}.png"
+            f"kernel_heatmaps_{regime}_{activation}_m{m}_scale_{scale_str}.png"
         )
         fig.savefig(fname, dpi=150, bbox_inches="tight")
         plt.close(fig)
@@ -217,20 +235,24 @@ def plot_initial_final_heatmaps(results: dict, save_dir: str):
 
 def plot_metric_vs_checkpoint_by_width(results: dict, save_dir: str,
                                        regime: str, activation: str,
+                                       beta_scaling: float,
                                        metric_name: str = "rel_change"):
     """
-    For a fixed (regime, activation), plot one metric vs checkpoint,
+    For a fixed (regime, activation, beta_scaling), plot one metric vs checkpoint,
     with one curve per width m.
 
     Useful for showing, for example:
       - NTK relative change gets smaller as m increases.
 
     Saved as:
-      compare_{metric_name}_{regime}_{activation}.png
+      compare_{metric_name}_{regime}_{activation}_scale_{beta_scaling}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    keys_present = [k for k in results if k[0] == regime and k[1] == activation]
+    keys_present = [
+        k for k in results
+        if k[0] == regime and k[1] == activation and k[3] == beta_scaling
+    ]
     if not keys_present:
         return
 
@@ -238,16 +260,22 @@ def plot_metric_vs_checkpoint_by_width(results: dict, save_dir: str,
     w_colors = _width_colormap(widths)
 
     fig, ax = plt.subplots(figsize=(8, 5))
+
+    sample_key = (regime, activation, widths[0], beta_scaling)
+    meta = results[sample_key]["metadata"]
+
     ax.set_title(
-        f"{metric_name} vs checkpoint — {REGIME_LABELS.get(regime, regime)} — {activation}",
+        f"{metric_name} vs checkpoint — {REGIME_LABELS.get(regime, regime)} — {activation}\n"
+        f"scale={beta_scaling:g}, β0={meta['default_beta']:g}, β={meta['effective_beta']:g}",
         fontsize=12,
         fontweight="bold"
     )
 
     for m in widths:
-        key = (regime, activation, m)
+        key = (regime, activation, m, beta_scaling)
         if key not in results:
             continue
+
         metrics = results[key].get("metrics", {})
         if not metrics:
             continue
@@ -267,9 +295,10 @@ def plot_metric_vs_checkpoint_by_width(results: dict, save_dir: str,
     ax.legend(fontsize=8)
     plt.tight_layout()
 
+    scale_str = f"{beta_scaling:g}"
     fname = os.path.join(
         save_dir,
-        f"compare_{metric_name}_{regime}_{activation}.png"
+        f"compare_{metric_name}_{regime}_{activation}_scale_{scale_str}.png"
     )
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -281,30 +310,42 @@ def plot_metric_vs_checkpoint_by_width(results: dict, save_dir: str,
 
 def plot_metric_vs_checkpoint_by_regime(results: dict, save_dir: str,
                                         activation: str, m: int,
+                                        beta_scaling: float,
                                         metric_name: str = "rel_change"):
     """
-    For a fixed (activation, m), compare regimes on one metric vs checkpoint.
+    For a fixed (activation, m, beta_scaling), compare regimes on one metric vs checkpoint.
 
     Useful for showing:
       RF stays constant, NTK changes a little, MF changes more.
 
     Saved as:
-      regime_compare_{metric_name}_{activation}_m{m}.png
+      regime_compare_{metric_name}_{activation}_m{m}_scale_{beta_scaling}.png
     """
     os.makedirs(save_dir, exist_ok=True)
 
-    regimes = sorted({k[0] for k in results})
+    keys_present = [
+        k for k in results
+        if k[1] == activation and k[2] == m and k[3] == beta_scaling
+    ]
+    if not keys_present:
+        return
+
+    regimes = sorted({k[0] for k in keys_present})
     fig, ax = plt.subplots(figsize=(8, 5))
 
+    sample_key = keys_present[0]
+    meta = results[sample_key]["metadata"]
+
     ax.set_title(
-        f"{metric_name} vs checkpoint — {activation} activation — m={m}",
+        f"{metric_name} vs checkpoint — {activation} activation — m={m}\n"
+        f"scale={beta_scaling:g}, β0={meta['default_beta']:g}, β={meta['effective_beta']:g}",
         fontsize=12,
         fontweight="bold"
     )
 
     any_plotted = False
     for regime in regimes:
-        key = (regime, activation, m)
+        key = (regime, activation, m, beta_scaling)
         if key not in results:
             continue
 
@@ -329,10 +370,167 @@ def plot_metric_vs_checkpoint_by_regime(results: dict, save_dir: str,
         ax.legend()
         plt.tight_layout()
 
+        scale_str = f"{beta_scaling:g}"
         fname = os.path.join(
             save_dir,
-            f"regime_compare_{metric_name}_{activation}_m{m}.png"
+            f"regime_compare_{metric_name}_{activation}_m{m}_scale_{scale_str}.png"
         )
         fig.savefig(fname, dpi=150, bbox_inches="tight")
 
+    plt.close(fig)
+
+
+def plot_kernel_metrics_by_width(results: dict, save_dir: str,
+                                 regime: str, activation: str, beta_scaling: float):
+    """
+    For a fixed (regime, activation, beta_scaling), create one 2x2 figure with:
+      - Frobenius norm
+      - Absolute change
+      - Relative change
+      - Mean kernel value
+
+    Each subplot contains one curve per width m.
+
+    Saved as:
+      kernel_metrics_by_width_{regime}_{activation}_scale_{beta_scaling}.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    keys_present = [
+        k for k in results
+        if k[0] == regime and k[1] == activation and k[3] == beta_scaling
+    ]
+    if not keys_present:
+        return
+
+    widths = sorted({k[2] for k in keys_present})
+    w_colors = _width_colormap(widths)
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+
+    sample_key = (regime, activation, widths[0], beta_scaling)
+    meta = results[sample_key]["metadata"]
+    default_beta = meta["default_beta"]
+    effective_beta = meta["effective_beta"]
+
+    fig.suptitle(
+        f"{REGIME_LABELS.get(regime, regime)} — {activation} activation\n"
+        f"default β={default_beta:g}, scale={beta_scaling:g}, effective β={effective_beta:g}",
+        fontsize=12,
+        fontweight="bold",
+        y=1.02
+    )
+
+    plot_specs = [
+        ("fro_norm", "Frobenius Norm", axes[0, 0]),
+        ("abs_change", "Absolute Change from $K_0$", axes[0, 1]),
+        ("rel_change", "Relative Change from $K_0$", axes[1, 0]),
+        ("mean_value", "Mean Kernel Value", axes[1, 1]),
+    ]
+
+    for metric_name, title, ax in plot_specs:
+        for m in widths:
+            key = (regime, activation, m, beta_scaling)
+            if key not in results:
+                continue
+
+            metrics = results[key].get("metrics", {})
+            if not metrics:
+                continue
+
+            checkpoints, values = _extract_metric_series(metrics, metric_name)
+            ax.plot(
+                checkpoints,
+                values,
+                marker="o",
+                linewidth=1.8,
+                color=w_colors[m],
+                label=f"m={m}"
+            )
+
+        ax.set_title(title)
+        ax.set_xlabel("Checkpoint / Iteration")
+        ax.set_ylabel(METRIC_LABELS.get(metric_name, metric_name))
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    if handles:
+        fig.legend(
+            handles, labels,
+            loc="upper center",
+            ncol=min(len(widths), 6),
+            bbox_to_anchor=(0.5, 0.98),
+            frameon=True
+        )
+
+    plt.tight_layout()
+    scale_str = f"{beta_scaling:g}"
+    fname = os.path.join(
+        save_dir,
+        f"kernel_metrics_by_width_{regime}_{activation}_scale_{scale_str}.png"
+    )
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_rel_change_by_beta_scaling(results: dict, save_dir: str,
+                                    regime: str, activation: str, m: int):
+    """
+    For a fixed (regime, activation, m), compare different beta scalings
+    using relative change vs checkpoint, with one curve per beta scaling.
+
+    Saved as:
+      rel_change_by_beta_{regime}_{activation}_m{m}.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    keys_present = [
+        k for k in results
+        if k[0] == regime and k[1] == activation and k[2] == m
+    ]
+    if not keys_present:
+        return
+
+    beta_scalings = sorted({k[3] for k in keys_present})
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.set_title(
+        f"Relative change vs checkpoint — {REGIME_LABELS.get(regime, regime)} — "
+        f"{activation} — m={m}",
+        fontsize=12,
+        fontweight="bold"
+    )
+
+    for beta_scaling in beta_scalings:
+        key = (regime, activation, m, beta_scaling)
+        if key not in results:
+            continue
+
+        metrics = results[key].get("metrics", {})
+        if not metrics:
+            continue
+
+        checkpoints, values = _extract_metric_series(metrics, "rel_change")
+        meta = results[key]["metadata"]
+
+        ax.plot(
+            checkpoints,
+            values,
+            marker="o",
+            linewidth=1.8,
+            label=(
+                f"scale={beta_scaling:g} "
+                f"(β0={meta['default_beta']:g}, β={meta['effective_beta']:g})"
+            )
+        )
+
+    ax.set_xlabel("Checkpoint / Iteration")
+    ax.set_ylabel("Relative change")
+    ax.legend(fontsize=8)
+    plt.tight_layout()
+
+    fname = os.path.join(
+        save_dir,
+        f"rel_change_by_beta_{regime}_{activation}_m{m}.png"
+    )
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)

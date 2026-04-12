@@ -61,7 +61,7 @@ class SyntheticDataGenerator(AbstractDataGenerator):
 class MNISTDataGenerator(AbstractDataGenerator):
 
     def __init__(self, logger):
-        super().__init__(logger)
+        super().__init__()
         self.logger = logger
 
     def make_dataset(self, **kwargs):
@@ -109,18 +109,23 @@ class MNISTDataGenerator(AbstractDataGenerator):
         X_test = X[n_train:n_train + n_test]
         y_test = y[n_train:n_train + n_test]
 
-        # Scale
-        X_train = X_train.astype(np.float64) / 255.0
-        X_test = X_test.astype(np.float64) / 255.0
+        # # Scale
+        # X_train = X_train.astype(np.float64) / 255.0
+        # X_test = X_test.astype(np.float64) / 255.0
 
         # Normalization
         if normalize:
-            # Calculate mean and std from training data
             mean = X_train.mean(axis=0, keepdims=True)
             std = X_train.std(axis=0, keepdims=True)
             std[std < 1e-8] = 1.0
             X_train = (X_train - mean) / std
             X_test = (X_test - mean) / std
+
+        # Scale by 1/sqrt(d) so XW^T pre-activations are O(1), matching the
+        # synthetic N(0, I/d) distribution the regime initialisation assumes.
+        d = X_train.shape[1]
+        X_train = X_train / np.sqrt(d)
+        X_test  = X_test  / np.sqrt(d)
 
         self.logger.info(f"  X_train: {X_train.shape}   y_train: {y_train.shape}")
         self.logger.info(f"  X_test : {X_test.shape}    y_test : {y_test.shape}")
@@ -133,13 +138,13 @@ class MNISTDataGenerator(AbstractDataGenerator):
 class CIFAR10DataGenerator(AbstractDataGenerator):
 
     def __init__(self, logger):
-        super().__init__(logger)
+        super().__init__()
         self.logger = logger
 
     def make_dataset(self, **kwargs):
         seed = kwargs.get("seed", 42)
         classes = kwargs.get("classes", (0, 1))  # Binary classification
-        n_train = kwargs.get("n", 5000)
+        n_train = kwargs.get("n", 4000)
         n_test = kwargs.get("n_test", 1000)
         normalize = kwargs.get("normalize", True)
         root = kwargs.get("root", "./data")
@@ -207,17 +212,22 @@ class CIFAR10DataGenerator(AbstractDataGenerator):
         y_test = y_test[:n_test]
 
         # Flatten and scale
-        X_train = X_train.astype(np.float64).reshape(len(X_train), -1) / 255.0
-        X_test = X_test.astype(np.float64).reshape(len(X_test), -1) / 255.0
+        X_train = X_train.astype(np.float64).reshape(len(X_train), -1)
+        X_test = X_test.astype(np.float64).reshape(len(X_test), -1)
 
         # Normalization
         if normalize:
-            # Calculate mean and std from training data
             mean = X_train.mean(axis=0, keepdims=True)
             std = X_train.std(axis=0, keepdims=True)
             std[std < 1e-8] = 1.0
             X_train = (X_train - mean) / std
             X_test = (X_test - mean) / std
+
+        # Scale by 1/sqrt(d) so XW^T pre-activations are O(1), matching the
+        # synthetic N(0, I/d) distribution the regime initialisation assumes.
+        d = X_train.shape[1]
+        X_train = X_train / np.sqrt(d)
+        X_test  = X_test  / np.sqrt(d)
 
         self.logger.info(f"  X_train: {X_train.shape}   y_train: {y_train.shape}")
         self.logger.info(f"  X_test : {X_test.shape}    y_test : {y_test.shape}")

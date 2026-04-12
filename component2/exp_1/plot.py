@@ -224,17 +224,30 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
     if n_regimes == 1:
         axes = [axes]
 
-    for ax, regime in zip(axes, regimes):
+    # Compute shared colour scale across all regimes
+    all_values = [
+        results[(regime, act, m)]["test_losses"][-1]
+        for regime in regimes
+        for act in activations
+        for m in widths
+        if (regime, act, m) in results
+    ]
+    global_vmax = max(all_values) if all_values else 1.0
+
+    matrices = {}
+    for regime in regimes:
         matrix = np.full((len(activations), len(widths)), np.nan)
         for i, act in enumerate(activations):
             for j, m in enumerate(widths):
                 key = (regime, act, m)
                 if key in results:
                     matrix[i, j] = results[key]["test_losses"][-1]
+        matrices[regime] = matrix
 
-        vmax = np.nanmax(matrix)
+    for ax, regime in zip(axes, regimes):
+        matrix = matrices[regime]
         im = ax.imshow(matrix, aspect="auto", cmap="YlOrRd",
-                       vmin=0, vmax=vmax)
+                       vmin=0, vmax=global_vmax)
         plt.colorbar(im, ax=ax, label="Final Test MSE", shrink=0.8)
 
         ax.set_title(REGIME_LABELS.get(regime, regime),
@@ -250,7 +263,7 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
         for i in range(len(activations)):
             for j in range(len(widths)):
                 if not np.isnan(matrix[i, j]):
-                    brightness = matrix[i, j] / (vmax + 1e-12)
+                    brightness = matrix[i, j] / (global_vmax + 1e-12)
                     txt_color = "white" if brightness > 0.6 else "black"
                     ax.text(j, i, f"{matrix[i, j]:.4f}",
                             ha="center", va="center",

@@ -12,8 +12,8 @@ python component2/exp_1/main.py --m_values 50 100 200 400 800 --n_iters 2000
 # Single regime / activation for quick testing
 python component2/exp_1/main.py --regimes NTK --activations relu --m_values 100 200 --n_iters 200
 
-# Override beta (scales learning rate per regime)
-python component2/exp_1/main.py --beta 0.5
+# Override beta per regime
+python component2/exp_1/main.py --beta_mf 0.01 --beta_ntk 0.1 --beta_rf 0.05
 """
 
 import os
@@ -44,6 +44,7 @@ from component2.exp_1.save import (
     save_results,
     print_summary_table,
 )
+from component2.checkpoint import save_checkpoint, load_checkpoint
 
 from component2.data_generator import SyntheticDataGenerator, MNISTDataGenerator, CIFAR10DataGenerator
 
@@ -80,9 +81,9 @@ def parse_args():
     data.add_argument("--d", type=int, default=10,
                       help="Input dimension (synthetic only; derived from data for real datasets)")
     data.add_argument("--n", type=int, default=None,
-                      help="Training samples. Defaults: 3000 (synthetic), 5000 (real)")
+                      help="Training samples. Defaults: 3000 (synthetic), 4000 (real)")
     data.add_argument("--n_test", type=int, default=None,
-                      help="Test samples. Defaults: 500 (synthetic), 1250 (real)")
+                      help="Test samples. Defaults: 500 (synthetic), 1000 (real)")
     data.add_argument("--m_star", type=int, default=20,
                       help="Hidden width of the ground-truth network")
     data.add_argument("--gt_activation", type=str, default="relu",
@@ -109,8 +110,12 @@ def parse_args():
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--beta", type=float, default=0.1,
-                       help="LR scale: MF uses beta*m, NTK uses beta, RF uses beta")
+    train.add_argument("--beta_mf", type=float, default=1e-4,
+                       help="LR scale for MF regime: lr = beta_mf * m")
+    train.add_argument("--beta_ntk", type=float, default=1e-2,
+                       help="LR scale for NTK regime: lr = beta_ntk")
+    train.add_argument("--beta_rf", type=float, default=1e-2,
+                       help="LR scale for RF regime: lr = beta_rf")
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
@@ -118,6 +123,8 @@ def parse_args():
     out = p.add_argument_group("Output")
     out.add_argument("--out_dir", type=str, default="results",
                      help="Root directory for logs, plots, and JSON results")
+    out.add_argument("--resume", type=str, default=None, metavar="CHECKPOINT_PATH",
+                     help="Path to a checkpoint JSON to resume from")
 
     return p.parse_args()
 
@@ -198,11 +205,32 @@ def main():
     args = parse_args()
 
     logs_dir = os.path.join(args.out_dir, "logs")
-    logger, log_stem = setup_logger(logs_dir, name="experiment1")
+
+    # ── Checkpoint / resume
+    checkpoint_log_stem = None
+    results = {}
+    completed_keys_set = set()
+    results_serializable = {}
+
+    if args.resume:
+        ckpt_log_stem, ckpt_results_serializable, completed_keys_set = load_checkpoint(args.resume)
+        checkpoint_log_stem = ckpt_log_stem
+        for str_key, val in ckpt_results_serializable.items():
+            regime, activation, m_str = str_key.split("__")
+            results[(regime, activation, int(m_str))] = val
+        results_serializable = dict(ckpt_results_serializable)
+        print(f"Resuming from checkpoint: {args.resume}  ({len(completed_keys_set)} configs already done)")
+
+    logger, log_stem = setup_logger(logs_dir, name="experiment1", log_stem=checkpoint_log_stem)
+    if args.resume:
+        logger.info(f"RESUMING from checkpoint: {args.resume}")
+        logger.info(f"  Already completed: {len(completed_keys_set)} configs")
 
     # Plots live in a subdirectory named after the log file
     plots_dir = os.path.join(args.out_dir, "plots", log_stem)
     os.makedirs(plots_dir, exist_ok=True)
+
+    checkpoint_path = os.path.join(args.out_dir, "checkpoints", f"{log_stem}_checkpoint.json")
 
     logger.info("=" * 60)
     logger.info("MATH562 — Experiment 1: Regime Comparison")
@@ -246,11 +274,12 @@ def main():
     logger.info(f"  Activations: {args.activations}")
     logger.info(f"  Widths m   : {args.m_values}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
-    logger.info(f"  Beta       : {args.beta}  (MF lr=beta*m, NTK/RF lr=beta)")
+    logger.info(f"  Beta MF    : {args.beta_mf}  (lr = beta_mf * m)")
+    logger.info(f"  Beta NTK   : {args.beta_ntk}  (lr = beta_ntk)")
+    logger.info(f"  Beta RF    : {args.beta_rf}  (lr = beta_rf)")
     logger.info(f"  Total runs : {total}")
     logger.info("")
 
-    results = {}
     run_idx = 0
     t_start = time.perf_counter()
 
@@ -258,16 +287,23 @@ def main():
         for activation in args.activations:
             for m in sorted(args.m_values):
                 run_idx += 1
-                lr = args.beta * m if regime == "MF" else args.beta
+                str_key = f"{regime}__{activation}__{m}"
+
+                if str_key in completed_keys_set:
+                    logger.info(f"[SKIP {run_idx}/{total}]  {str_key}  (already in checkpoint)")
+                    continue
+
+                beta = {"MF": args.beta_mf, "NTK": args.beta_ntk, "RF": args.beta_rf}[regime]
+                lr = beta * m if regime == "MF" else beta
                 logger.info(
                     f"[{run_idx}/{total}]  regime={regime}  "
-                    f"activation={activation}  m={m}  beta={args.beta}  lr={lr}"
+                    f"activation={activation}  m={m}  beta={beta}  lr={lr}"
                 )
                 train_losses, test_losses, train_accs, test_accs = run_one(
                     regime_name=regime,
                     activation=activation,
                     m=m,
-                    beta=args.beta,
+                    beta=beta,
                     n_iters=args.n_iters,
                     log_every=args.log_every,
                     X_train=X_train,
@@ -286,6 +322,17 @@ def main():
                     entry["train_accs"] = [float(v) for v in train_accs]
                     entry["test_accs"] = [float(v) for v in test_accs]
                 results[(regime, activation, m)] = entry
+
+                completed_keys_set.add(str_key)
+                results_serializable[str_key] = entry
+                save_checkpoint(
+                    path=checkpoint_path,
+                    log_stem=log_stem,
+                    results_serializable=results_serializable,
+                    completed_keys=completed_keys_set,
+                    args_dict=vars(args),
+                    experiment_name="experiment1",
+                )
 
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")

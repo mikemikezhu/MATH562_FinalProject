@@ -16,14 +16,16 @@ from component2.exp_2.plot import plot_training_curves
 from component2.exp_2.save import (
     save_results,
     save_variance_results,
+    save_learn_score_results,
     print_summary_table,
-    print_variance_table
+    print_variance_table,
+    print_learn_score_table
 )
 
-from component2.exp_2.eval import compute_mean_variance
+from component2.exp_2.eval import compute_mean_variance, compute_learn_score
 from component2.data_generator import SyntheticDataGenerator
 
-#  python component2/exp_2/main.py --beta 1000 --activation rel
+#  python component2/exp_2/main.py
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Regime registry
@@ -40,22 +42,23 @@ REGIME_CLASSES = {
 # Then, prefactor = 0.01, alpha = 2.0
 EXP_SETTINGS = {
     "MF": [
-        {"alpha": 0.0, "prefactor": 1.0},
-        {"alpha": 0.5, "prefactor": 1.0},
-        {"alpha": 1.0, "prefactor": 1.0},
-        {"alpha": 2.0, "prefactor": 0.01}  # MF with m^2 scaling is often too large, so we reduce it by a factor
+        {"beta": 1e-4, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 1e-4, "alpha": 0.5, "prefactor": 1.0},
+        {"beta": 1e-4, "alpha": 1.0, "prefactor": 1.0},
+        {"beta": 1e-4, "alpha": 2.0, "prefactor": 0.01}
+        # MF with m^2 scaling is often too large, so we reduce it by a factor
     ],
     "NTK": [
-        {"alpha": 0.0, "prefactor": 1.0},
-        {"alpha": 0.5, "prefactor": 0.5},
-        {"alpha": 1.0, "prefactor": 0.1},
-        {"alpha": -0.5, "prefactor": 1.0}
+        {"beta": 1e-2, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 1e-2, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 1e-2, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 1e-2, "alpha": -0.5, "prefactor": 1.0}
     ],
     "RF": [
-        {"alpha": 0.0, "prefactor": 1.0},
-        {"alpha": 0.5, "prefactor": 0.5},
-        {"alpha": 1.0, "prefactor": 0.1},
-        {"alpha": -0.5, "prefactor": 1.0}
+        {"beta": 1e-2, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 1e-2, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 1e-2, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 1e-2, "alpha": -0.5, "prefactor": 1.0}
     ]
 }
 
@@ -88,8 +91,9 @@ def parse_args():
                       help="Activation for the trained networks")
     data.add_argument("--seed", type=int, default=42,
                       help="Global RNG seed")
-    data.add_argument("--beta", type=float, default=0.1,
-                      help="Base learning rate")
+    # Fix beta for each regime, instead of all regimes
+    # data.add_argument("--beta", type=float, default=0.001,
+    #                   help="Base learning rate")
 
     # ── Experiment grid
     grid = p.add_argument_group("Experiment grid")
@@ -191,7 +195,6 @@ def main():
     logger.info("=" * 60)
     logger.info(f"  Regimes    : {args.regimes}")
     logger.info(f"  Widths m   : {args.m_values}")
-    logger.info(f"  Beta : {args.beta}")
     logger.info(f"  Settings : {EXP_SETTINGS}")
     logger.info(f"  Iterations : {args.n_iters}  (log every {args.log_every})")
     logger.info(f"  Total runs : {total}")
@@ -207,16 +210,17 @@ def main():
         # Then, prefactor = 0.01, alpha = 2.0
         settings = EXP_SETTINGS[regime]
         for s in settings:
+            beta = s["beta"]
             alpha = s["alpha"]
             prefactor = s["prefactor"]
             logger.info(f"====== Experiment: learning_rate = {prefactor} * beta * m^{alpha}  (regime={regime}) ======")
             for m in sorted(args.m_values):
                 run_idx += 1
-                lr = prefactor * args.beta * (m ** alpha)
+                lr = prefactor * beta * (m ** alpha)
                 logger.info(
                     f"[{run_idx}/{total}]  regime={regime}  "
                     f"activation={args.activation}  m={m}  lr={lr}  "
-                    f"beta={args.beta}  alpha={alpha}  prefactor={prefactor}]"
+                    f"beta={beta}  alpha={alpha}  prefactor={prefactor}]"
                 )
                 train_losses, test_losses = run_one(
                     regime_name=regime,
@@ -240,7 +244,7 @@ def main():
             # ── After every (regime, setting) pair: training curves
             pair_results = {k: v for k, v in results.items() if k[0] == regime and k[1] == alpha and k[2] == prefactor}
             plot_training_curves(args, pair_results, plots_dir, log_interval=args.log_every)
-            logger.info(f"  Saved curves_{regime}_beta_{args.beta}_alpha_{alpha}_prefactor_{prefactor}.png")
+            logger.info(f"  Saved curves_{regime}_beta_{beta}_alpha_{alpha}_prefactor_{prefactor}.png")
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 
@@ -248,6 +252,11 @@ def main():
     variance_results = compute_mean_variance(results)
     save_variance_results(variance_results, args.out_dir, log_stem=log_stem)
     print_variance_table(variance_results, logger)
+
+    # Calculate learn score
+    learn_score_results = compute_learn_score(results)
+    save_learn_score_results(learn_score_results, args.out_dir, log_stem=log_stem)
+    print_learn_score_table(learn_score_results, logger)
 
     # ── Summary table
     print_summary_table(results, logger)

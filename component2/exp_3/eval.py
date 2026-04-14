@@ -6,7 +6,11 @@ def frobenius_norm(K: numpy.ndarray):
 
 
 def relative_change(K_old: numpy.ndarray, K_new: numpy.ndarray):
-    return numpy.linalg.norm(K_new - K_old) / numpy.linalg.norm(K_old)
+    denom = numpy.linalg.norm(K_old)
+    if denom != 0.0:
+        return numpy.linalg.norm(K_new - K_old) / numpy.linalg.norm(K_old)
+    else:
+        return 0.0
 
 
 def absolute_change(K_old: numpy.ndarray, K_new: numpy.ndarray):
@@ -52,10 +56,7 @@ def kernel_trajectory(kernels_by_checkpoint: dict):
             rel_change = 0.0
         else:
             abs_change = absolute_change(K0, Kt)
-
-            # Avoid division by zero just in case
-            denom = frobenius_norm(K0)
-            rel_change = abs_change / denom if denom != 0 else 0.0
+            rel_change = relative_change(K0, Kt)
 
         results[t] = {
             "fro_norm": float(fro_norm),

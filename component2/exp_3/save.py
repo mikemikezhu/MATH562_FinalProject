@@ -57,8 +57,9 @@ def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str
     os.makedirs(save_dir, exist_ok=True)
 
     serialisable = {}
-    for (regime, activation, m), val in results.items():
-        str_key = f"{regime}__{activation}__{m}"
+    for (regime, activation, m, beta_scaling), val in results.items():
+        scale_str = f"{beta_scaling:g}"
+        str_key = f"{regime}__{activation}__{m}__scale_{scale_str}"
 
         metadata = val.get("metadata", {})
         metrics = val.get("metrics", {})
@@ -67,6 +68,7 @@ def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str
             "regime": regime,
             "activation": activation,
             "m": m,
+            "beta_scaling": beta_scaling,
             "metadata": _to_serialisable(metadata),
             "metrics": _to_serialisable(metrics),
         }
@@ -103,10 +105,11 @@ def save_kernel_matrices(results: dict, save_dir: str, log_stem: str = "results"
 
     arrays_to_save = {}
 
-    for (regime, activation, m), val in results.items():
+    for (regime, activation, m, beta_scaling), val in results.items():
+        scale_str = f"{beta_scaling:g}"
         kernels = val.get("kernels", {})
         for checkpoint, K in kernels.items():
-            array_key = f"{regime}__{activation}__{m}__ckpt_{checkpoint}"
+            array_key = f"{regime}__{activation}__{m}__scale_{scale_str}__ckpt_{checkpoint}"
             arrays_to_save[array_key] = np.asarray(K)
 
     path = os.path.join(save_dir, f"{log_stem}_kernels.npz")
@@ -143,7 +146,7 @@ def print_summary_table(results: dict, logger: logging.Logger):
     logger.info(sep)
 
     for key in sorted(results.keys()):
-        regime, activation, m = key
+        regime, activation, m, beta_scaling = key
         metrics = results[key].get("metrics", {})
 
         if not metrics:

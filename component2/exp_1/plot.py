@@ -219,10 +219,13 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
     activations = sorted({k[1] for k in results})
     widths = sorted({k[2] for k in results})
 
-    n_regimes = len(regimes)
-    fig, axes = plt.subplots(1, n_regimes, figsize=(5.5 * n_regimes, 4.0))
-    if n_regimes == 1:
-        axes = [axes]
+    # Triangle layout: NTK + RF on top row, MF centred on bottom row
+    fig = plt.figure(figsize=(15.0, 12.0))
+    gs = fig.add_gridspec(2, 4, hspace=0.45, wspace=0.35)
+    ax_ntk = fig.add_subplot(gs[0, 0:2])
+    ax_rf  = fig.add_subplot(gs[0, 2:4])
+    ax_mf  = fig.add_subplot(gs[1, 1:3])
+    regime_axes = {"NTK": ax_ntk, "RF": ax_rf, "MF": ax_mf}
 
     # Compute shared colour scale across all regimes
     all_values = [
@@ -244,11 +247,14 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
                     matrix[i, j] = results[key]["test_losses"][-1]
         matrices[regime] = matrix
 
-    for ax, regime in zip(axes, regimes):
+    im = None
+    for regime in regimes:
+        ax = regime_axes.get(regime)
+        if ax is None:
+            continue
         matrix = matrices[regime]
         im = ax.imshow(matrix, aspect="auto", cmap="YlOrRd",
                        vmin=0, vmax=global_vmax)
-        plt.colorbar(im, ax=ax, label="Final Test MSE", shrink=0.8)
 
         ax.set_title(REGIME_LABELS.get(regime, regime),
                      fontweight="bold", fontsize=11)
@@ -269,8 +275,12 @@ def plot_final_loss_heatmap(results: dict, save_dir: str):
                             ha="center", va="center",
                             fontsize=8, color=txt_color)
 
+    # Single shared colour bar anchored to the full figure
+    if im is not None:
+        cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
+        fig.colorbar(im, cax=cbar_ax, label="Final Test MSE")
+
     fig.suptitle("Final Test Loss Heatmap", fontsize=13, fontweight="bold")
-    plt.tight_layout()
     fname = os.path.join(save_dir, "heatmap_final_test_loss.png")
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)

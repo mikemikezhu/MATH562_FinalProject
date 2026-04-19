@@ -109,17 +109,49 @@ def plot_training_curves(args, results: dict, save_dir: str, log_interval: int =
                     if key not in results:
                         continue
                     r = results[key]
-                    iters = _iters_axis(r["train_losses"], log_interval)
+
+                    if len(r["train_losses"]) == 0:
+                        continue
+
+                    ys = np.asarray(r["train_losses"], dtype=float)
+                    iters = np.asarray(_iters_axis(r["train_losses"], log_interval), dtype=float)
+
+                    valid = np.isfinite(ys) & (ys > 0) & (ys < 1e100)
+
+                    end = 0
+                    for ok in valid:
+                        if not ok:
+                            break
+                        end += 1
+
+                    ys = ys[:end]
+                    iters = iters[:end]
+
+                    if len(ys) == 0:
+                        continue
+
                     col = w_colors[m]
-                    ax.semilogy(iters, r["train_losses"], color=col,
-                                linewidth=1.5, label=f"m={m}")
+                    ax.semilogy(iters, ys, color=col, linewidth=1.5, label=f"m={m}")
 
                 ax.set_xlabel("Iteration")
                 ax.set_ylabel("Training MSE (log scale)")
                 ax.set_title("Training Loss")
-                ax.legend(fontsize=8, loc="best", frameon=True)
 
-                plt.tight_layout()
+                handles, labels = ax.get_legend_handles_labels()
+                if handles:
+                    ax.legend(fontsize=8, loc="best", frameon=True)
+
+                if not ax.has_data():
+                    plt.close(fig)
+                    continue
+
+                try:
+                    plt.tight_layout()
+                except Exception as e:
+                    print(f"tight_layout failed for regime={regime}, alpha={alpha}, prefactor={prefactor}: {e}")
+                    plt.close(fig)
+                    continue
+
                 fname = os.path.join(save_dir,
                                      f"curves_{regime}_alpha_{alpha}_prefactor_{prefactor}.png")
                 fig.savefig(fname, dpi=150, bbox_inches="tight")

@@ -26,8 +26,8 @@ def save_results(results: dict, save_dir: str, log_stem: str = "results") -> str
             "m": m,
             "train_losses": val["train_losses"],
             "test_losses": val["test_losses"],
-            "final_train_loss": val["train_losses"][-1],
-            "final_test_loss": val["test_losses"][-1],
+            "final_train_loss": val["train_losses"][-1] if len(val["train_losses"]) > 0 else None,
+            "final_test_loss": val["test_losses"][-1] if len(val["test_losses"]) > 0 else None,
         }
     path = os.path.join(save_dir, f"{log_stem}.json")
     with open(path, "w") as f:

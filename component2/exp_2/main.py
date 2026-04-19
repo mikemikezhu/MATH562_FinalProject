@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
 if PROJECT_ROOT not in sys.path:
@@ -41,24 +42,25 @@ REGIME_CLASSES = {
 # e.g. eta = beta * m^2 / 100
 # Then, prefactor = 0.01, alpha = 2.0
 EXP_SETTINGS = {
+    # Tried with different betas, 0.1 is the best for MF
     "MF": [
-        {"beta": 1e-4, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 1e-4, "alpha": 0.5, "prefactor": 1.0},
-        {"beta": 1e-4, "alpha": 1.0, "prefactor": 1.0},
-        {"beta": 1e-4, "alpha": 2.0, "prefactor": 0.01}
+        {"beta": 0.1, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 0.5, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 1.0, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 2.0, "prefactor": 0.01}
         # MF with m^2 scaling is often too large, so we reduce it by a factor
     ],
     "NTK": [
-        {"beta": 1e-2, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 1e-2, "alpha": 0.5, "prefactor": 0.5},
-        {"beta": 1e-2, "alpha": 1.0, "prefactor": 0.1},
-        {"beta": 1e-2, "alpha": -0.5, "prefactor": 1.0}
+        {"beta": 0.01, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 0.01, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 0.01, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 0.01, "alpha": -0.5, "prefactor": 1.0}
     ],
     "RF": [
-        {"beta": 1e-2, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 1e-2, "alpha": 0.5, "prefactor": 0.5},
-        {"beta": 1e-2, "alpha": 1.0, "prefactor": 0.1},
-        {"beta": 1e-2, "alpha": -0.5, "prefactor": 1.0}
+        {"beta": 0.01, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 0.01, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 0.01, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 0.01, "alpha": -0.5, "prefactor": 1.0}
     ]
 }
 
@@ -144,6 +146,14 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
             y_pred_test = model.forward(X_test)
             trl = model.mse_loss(y_train, y_pred_train)
             tel = model.mse_loss(y_test, y_pred_test)
+
+            if not (np.isfinite(trl) and np.isfinite(tel)):
+                logger.warning(
+                    f"  SKIP  [{regime_name:3s}|{activation:4s}|m={m:4d}] "
+                    f"iter {it:5d}/{n_iters}  train={trl}  test={tel}  non-finite loss detected"
+                )
+                break
+
             train_losses.append(trl)
             test_losses.append(tel)
 
@@ -155,11 +165,18 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
             )
 
     elapsed = time.perf_counter() - t0
-    logger.info(
-        f"  DONE  [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
-        f"train={train_losses[-1]:.6f}  test={test_losses[-1]:.6f}  "
-        f"({elapsed:.1f}s)"
-    )
+    if len(train_losses) == 0 or len(test_losses) == 0:
+        logger.info(
+            f"  FAILED [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
+            f"no finite loss recorded  ({elapsed:.1f}s)"
+        )
+    else:
+        logger.info(
+            f"  DONE  [{regime_name:3s}|{activation:4s}|m={m:4d}]  "
+            f"train={train_losses[-1]:.6f}  test={test_losses[-1]:.6f}  "
+            f"({elapsed:.1f}s)"
+        )
+
     return train_losses, test_losses
 
 

@@ -110,11 +110,11 @@ def parse_args():
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
-    train.add_argument("--beta_mf", type=float, default=1e-4,
+    train.add_argument("--beta_mf", type=float, default=0.1,
                        help="LR scale for MF regime: lr = beta_mf * m")
-    train.add_argument("--beta_ntk", type=float, default=1e-2,
+    train.add_argument("--beta_ntk", type=float, default=1,
                        help="LR scale for NTK regime: lr = beta_ntk")
-    train.add_argument("--beta_rf", type=float, default=1e-2,
+    train.add_argument("--beta_rf", type=float, default=1,
                        help="LR scale for RF regime: lr = beta_rf")
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")

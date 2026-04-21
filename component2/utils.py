@@ -54,5 +54,4 @@ def setup_logger(log_dir: str, name: str = "experiment", log_stem: str = None) -
     logger.addHandler(fh)
     logger.addHandler(ch)
     logger.info(f"Logging to {log_file}")
-    log_stem = f"{name}_{timestamp}"
     return logger, log_stem

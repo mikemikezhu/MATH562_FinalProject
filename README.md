@@ -48,10 +48,21 @@ TODO
 TODO
 
 ## Component 2: Scaling Regimes in Two-Layer Neural Networks
+The component 2 folder is structured as follows:
+- `data_generator.py`: Utility for generating datasets (synthetic, MNIST, CIFAR-10)
+- `regimes.py`: Implementations of the three training regimes (MF, NTK, RF) as well as the two-layer neural network architecture.
+- `utils.py`: Utility functions for training, evaluation, logging, and plotting.
+- `checkpoints.py`: Functions for saving and loading run checkpoints.
+- `exp_1/`: Performance comparison across regimes (MF, NTK, RF)
+- `exp_2/`: Learning rate scaling analysis
+- `exp_3/`: Kernel evolution and constancy
 
 ### Experiment 1: Performance comparison across regimes (MF, NTK, RF)
-
-TODO
+```
+python component2/exp_1/main.py
+```
+Specific configurations can be made through arguments (run --help for details and defaults). 
+The results can be found in the results folder, which contains the logs, plots, and JSON output files.
 
 ### Experiment 2: Learning rate scaling analysis
 

@@ -21,6 +21,8 @@ from component2.exp_3.plot import (
     plot_kernel_metrics_by_width,
     plot_metric_vs_checkpoint_by_regime,
     plot_rel_change_by_beta_scaling,
+    plot_ntk_final_rel_change_vs_width,
+    plot_mf_rel_change_vs_checkpoint_by_width,   # ← add this
 )
 
 
@@ -30,17 +32,9 @@ REGIME_CLASSES = {
     "RF": RandomFeaturesRegime,
 }
 
-#TODO: figure out learning rates
-'''
-DEFAULT_BETA_NTK = 0.01
-DEFAULT_BETA_RF = 0.01
-DEFAULT_BETA_MF = 0.0001
-'''
-
-DEFAULT_BETA_NTK = 0.3
-DEFAULT_BETA_RF = 3.5
-DEFAULT_BETA_MF = 0.2
-
+DEFAULT_BETA_NTK = 1.0
+DEFAULT_BETA_RF = 1.0
+DEFAULT_BETA_MF = 0.1
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
@@ -75,12 +69,12 @@ def parse_args():
     grid.add_argument("--m_values",
                       type=int,
                       nargs="+",
-                      default=[100, 200, 400, 800, 1600],
+                      default=[100, 200, 400, 800],
                       help="List of hidden widths m to sweep over")
     grid.add_argument("--activations",
                       type=str,
                       nargs="+",
-                      default=["relu", "erf", "tanh"],
+                      default=["tanh"],
                       choices=["relu", "erf", "tanh"],
                       help="Activation functions to test")
     grid.add_argument("--regimes",
@@ -92,7 +86,7 @@ def parse_args():
     grid.add_argument("--beta_scalings",
         type=float,
         nargs="+",
-        default=[1.0],
+        default=[0.5, 1.0, 1.5, 2.0],
         help="Multiplicative scalings applied to the default beta for each regime"
     )
 
@@ -399,6 +393,22 @@ def main():
                     activation=activation,
                     m=m,
                 )
+
+    # 4) NTK final relative change vs width (fixed activation=tanh, scaling=1)
+    plot_ntk_final_rel_change_vs_width(
+        results,
+        plots_dir,
+        activation="tanh",
+        beta_scaling=1.0,
+    )
+
+    # 5) Simple MF relative-change-vs-checkpoint plot by width
+    plot_mf_rel_change_vs_checkpoint_by_width(
+        results,
+        plots_dir,
+        activation="tanh",
+        beta_scaling=1.0,
+    )
 
     logger.info(f"\nTotal wall-clock time: {time.perf_counter() - t_start:.1f}s")
 

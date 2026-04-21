@@ -534,3 +534,144 @@ def plot_rel_change_by_beta_scaling(results: dict, save_dir: str,
     )
     fig.savefig(fname, dpi=150, bbox_inches="tight")
     plt.close(fig)
+
+
+def plot_ntk_final_rel_change_vs_width(results: dict, save_dir: str,
+                                       activation: str = "tanh",
+                                       beta_scaling: float = 1.0):
+    """
+    Plot final relative change vs width m for NTK regime only.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Filter relevant runs
+    keys_present = [
+        k for k in results
+        if k[0] == "NTK" and k[1] == activation and k[3] == beta_scaling
+    ]
+    if not keys_present:
+        return
+
+    # Sort by width
+    widths = sorted([k[2] for k in keys_present])
+
+    final_rel_changes = []
+
+    for m in widths:
+        key = ("NTK", activation, m, beta_scaling)
+        if key not in results:
+            continue
+
+        metrics = results[key].get("metrics", {})
+        if not metrics:
+            continue
+
+        checkpoints = sorted(metrics.keys())
+        final_ckpt = checkpoints[-1]
+        final_rel_change = metrics[final_ckpt]["rel_change"]
+
+        final_rel_changes.append(final_rel_change)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(7, 5))
+
+    ax.plot(
+        widths,
+        final_rel_changes,
+        marker="o",
+        linewidth=2,
+        color=REGIME_COLORS["NTK"]
+    )
+
+    ax.set_title(
+        "NTK kernel constancy: width vs final relative change",
+        fontsize=12,
+        fontweight="bold"
+    )
+    ax.set_xlabel("Width m")
+    ax.set_ylabel("Final relative change")
+
+    # ✅ KEY FIXES
+    # Remove log scale → equal spacing
+    # ax.set_xscale("log")  ← DELETE THIS
+
+    # Force ticks to be exactly your widths (100, 200, ...)
+    ax.set_xticks(widths)
+    ax.set_xticklabels([str(w) for w in widths])
+
+    plt.tight_layout()
+
+    fname = os.path.join(
+        save_dir,
+        f"ntk_final_rel_change_vs_width_{activation}_scale_{beta_scaling:g}.png"
+    )
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_mf_rel_change_vs_checkpoint_by_width(results: dict, save_dir: str,
+                                              activation: str = "tanh",
+                                              beta_scaling: float = 1.0):
+    """
+    Plot relative change vs checkpoint for MF regime, with one curve per width.
+
+    Default:
+      - regime = MF
+      - activation = tanh
+      - beta_scaling = 1
+
+    Saved as:
+      mf_rel_change_vs_checkpoint_by_width_{activation}_scale_{beta_scaling}.png
+    """
+    os.makedirs(save_dir, exist_ok=True)
+
+    keys_present = [
+        k for k in results
+        if k[0] == "MF" and k[1] == activation and k[3] == beta_scaling
+    ]
+    if not keys_present:
+        return
+
+    widths = sorted({k[2] for k in keys_present})
+    w_colors = _width_colormap(widths)
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    for m in widths:
+        key = ("MF", activation, m, beta_scaling)
+        if key not in results:
+            continue
+
+        metrics = results[key].get("metrics", {})
+        if not metrics:
+            continue
+
+        checkpoints = sorted(metrics.keys())
+        values = [metrics[t]["rel_change"] for t in checkpoints]
+
+        ax.plot(
+            checkpoints,
+            values,
+            marker="o",
+            linewidth=2,
+            color=w_colors[m],
+            label=f"m={m}"
+        )
+
+    ax.set_title(
+        f"MF relative change vs checkpoint — {activation} — scale={beta_scaling:g}",
+        fontsize=12,
+        fontweight="bold"
+    )
+    ax.set_xlabel("Checkpoint / Iteration")
+    ax.set_ylabel("Relative change")
+    ax.legend(fontsize=9)
+
+    plt.tight_layout()
+
+    fname = os.path.join(
+        save_dir,
+        f"mf_rel_change_vs_checkpoint_by_width_{activation}_scale_{beta_scaling:g}.png"
+    )
+    fig.savefig(fname, dpi=150, bbox_inches="tight")
+    plt.close(fig)

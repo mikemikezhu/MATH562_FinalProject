@@ -68,7 +68,7 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
-    # ── Data / ground-truth
+    # Data / ground-truth
     data = p.add_argument_group("Data & ground-truth network")
     data.add_argument("--dataset", type=str, default="synthetic",
                       choices=["synthetic", "mnist", "cifar10"],
@@ -92,7 +92,7 @@ def parse_args():
     data.add_argument("--seed", type=int, default=42,
                       help="Global RNG seed")
 
-    # ── Experiment grid
+    # Experiment grid
     grid = p.add_argument_group("Experiment grid")
     grid.add_argument("--m_values", type=int, nargs="+",
                       default=[100, 200, 400, 800],
@@ -106,7 +106,7 @@ def parse_args():
                       choices=["NTK", "MF", "RF"],
                       help="Regimes to include")
 
-    # ── Training
+    # Training
     train = p.add_argument_group("Training")
     train.add_argument("--n_iters", type=int, default=1000,
                        help="Number of gradient descent iterations")
@@ -119,7 +119,7 @@ def parse_args():
     train.add_argument("--log_every", type=int, default=50,
                        help="Record train/test loss every N iterations")
 
-    # ── Output
+    # Output
     out = p.add_argument_group("Output")
     out.add_argument("--out_dir", type=str, default="results",
                      help="Root directory for logs, plots, and JSON results")

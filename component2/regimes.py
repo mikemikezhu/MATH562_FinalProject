@@ -30,10 +30,6 @@ class BaseRegime:
         self._Z = None
         self._A = None
 
-    # ------------------------------------------------------------------
-    # Activation and its derivative
-    # ------------------------------------------------------------------
-
     def sigma(self, z):
         if self.activation_name == "relu":
             return np.maximum(0.0, z)
@@ -56,10 +52,6 @@ class BaseRegime:
         else:
             raise ValueError(f"Unsupported activation: {self.activation_name!r}.")
 
-    # ------------------------------------------------------------------
-    # Forward pass
-    # ------------------------------------------------------------------
-
     def forward(self, X):
         """
         Compute f(X) = (1/alpha) * sigma(X W^T) a.
@@ -76,10 +68,6 @@ class BaseRegime:
         self._Z = X @ self.W.T          # (n, m)
         self._A = self.sigma(self._Z)   # (n, m)
         return (1.0 / self.alpha) * (self._A @ self.a)  # (n,)
-
-    # ------------------------------------------------------------------
-    # Backward pass
-    # ------------------------------------------------------------------
 
     def backward(self, y_true, y_pred):
         """
@@ -108,21 +96,13 @@ class BaseRegime:
         dL_dW = dL_dZ.T @ self._X
 
         return dL_dW, dL_da
-
-    # ------------------------------------------------------------------
-    # Gradient descent step
-    # ------------------------------------------------------------------
-
+    
     def gradient_descent_step(self, X, y_true, learning_rate):
         """One step of full gradient descent (updates both W and a)."""
         y_pred = self.forward(X)
         dL_dW, dL_da = self.backward(y_true, y_pred)
         self.W -= learning_rate * dL_dW
         self.a -= learning_rate * dL_da
-
-    # ------------------------------------------------------------------
-    # Loss
-    # ------------------------------------------------------------------
 
     def mse_loss(self, y_true, y_pred):
         return float(np.mean((y_true - y_pred) ** 2))
@@ -136,10 +116,7 @@ class BaseRegime:
             losses.append(self.mse_loss(y, y_pred))
         return losses
 
-
-# --------------------------------------------------------------------------
 # Regime subclasses — differ only in alpha and which parameters are trained
-# --------------------------------------------------------------------------
 
 class NTKRegime(BaseRegime):
     """

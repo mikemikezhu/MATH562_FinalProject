@@ -42,25 +42,24 @@ REGIME_CLASSES = {
 # e.g. eta = beta * m^2 / 100
 # Then, prefactor = 0.01, alpha = 2.0
 EXP_SETTINGS = {
-    # Tried with different betas, 0.1 is the best for MF
     "MF": [
-        {"beta": 0.1, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 0.1, "alpha": 0.5, "prefactor": 1.0},
-        {"beta": 0.1, "alpha": 1.0, "prefactor": 1.0},
-        {"beta": 0.1, "alpha": 2.0, "prefactor": 0.01}
+        {"beta": 0.03, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 0.03, "alpha": 0.5, "prefactor": 1.0},
+        {"beta": 0.03, "alpha": 1.0, "prefactor": 1.0},
+        {"beta": 0.03, "alpha": 2.0, "prefactor": 0.01}
         # MF with m^2 scaling is often too large, so we reduce it by a factor
     ],
     "NTK": [
-        {"beta": 0.01, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 0.01, "alpha": 0.5, "prefactor": 0.5},
-        {"beta": 0.01, "alpha": 1.0, "prefactor": 0.1},
-        {"beta": 0.01, "alpha": -0.5, "prefactor": 1.0}
+        {"beta": 1.0, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 1.0, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 1.0, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 1.0, "alpha": -0.5, "prefactor": 1.0}
     ],
     "RF": [
-        {"beta": 0.01, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 0.01, "alpha": 0.5, "prefactor": 0.5},
-        {"beta": 0.01, "alpha": 1.0, "prefactor": 0.1},
-        {"beta": 0.01, "alpha": -0.5, "prefactor": 1.0}
+        {"beta": 1.0, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 1.0, "alpha": 0.5, "prefactor": 0.5},
+        {"beta": 1.0, "alpha": 1.0, "prefactor": 0.1},
+        {"beta": 1.0, "alpha": -0.5, "prefactor": 1.0}
     ]
 }
 
@@ -137,6 +136,27 @@ def run_one(regime_name, activation, m, lr, n_iters, log_every,
 
     train_losses, test_losses = [], []
     t0 = time.perf_counter()
+
+    # Record initial loss before any GD step
+    y_pred_train = model.forward(X_train)
+    y_pred_test = model.forward(X_test)
+    trl = model.mse_loss(y_train, y_pred_train)
+    tel = model.mse_loss(y_test, y_pred_test)
+
+    if not (np.isfinite(trl) and np.isfinite(tel)):
+        logger.warning(
+            f"  FAILED [{regime_name:3s}|{activation:4s}|m={m:4d}] "
+            f"initial train={trl}  test={tel}  non-finite initial loss"
+        )
+        return train_losses, test_losses
+
+    train_losses.append(trl)
+    test_losses.append(tel)
+
+    logger.debug(
+        f"  [{regime_name:3s}|{activation:4s}|m={m:4d}] "
+        f"iter {0:5d}/{n_iters}  train={trl:.6f}  test={tel:.6f}  (0.0s)"
+    )
 
     for it in range(1, n_iters + 1):
         model.gradient_descent_step(X_train, y_train, lr)

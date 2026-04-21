@@ -62,4 +62,22 @@ The results can be found in the results folder, which contains the logs, plots, 
 
 ### Experiment 3: Kernel evolution and constancy
 
-TODO
+```
+python component2/exp_3/main.py
+```
+By default, this runs the experiment over:
+regimes: NTK, MF, RF,
+widths: m ∈ {100, 200, 400, 800},
+activations: tanh (primary),
+checkpoints during training for kernel evaluation,
+multiple learning rate scalings (beta_scalings).
+
+
+Optional arguments (see main.py) allow you to modify:
+--m_values,
+--activation,
+--n_iters,
+--log_every,
+--n_kernel,
+--beta_scalings.
+The results can be found in the results/ folder, which contains logs, plots, JSON output files, and saved kernel matrices.

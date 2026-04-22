@@ -43,10 +43,10 @@ REGIME_CLASSES = {
 # Then, prefactor = 0.01, alpha = 2.0
 EXP_SETTINGS = {
     "MF": [
-        {"beta": 0.03, "alpha": 0.0, "prefactor": 1.0},
-        {"beta": 0.03, "alpha": 0.5, "prefactor": 1.0},
-        {"beta": 0.03, "alpha": 1.0, "prefactor": 1.0},
-        {"beta": 0.03, "alpha": 2.0, "prefactor": 0.01}
+        {"beta": 0.1, "alpha": 0.0, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 0.5, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 1.0, "prefactor": 1.0},
+        {"beta": 0.1, "alpha": 2.0, "prefactor": 0.01}
         # MF with m^2 scaling is often too large, so we reduce it by a factor
     ],
     "NTK": [

@@ -31,21 +31,9 @@ pip install -r requirements.txt
 
 ## Component 1: Linear Regression and Joint Scaling Limits
 
-### Experiment 1: Scaling of the learning rate in small-batch SGD
-
-TODO
-
-### Experiment 2: Effect of randomness in SGD (uniform sampling vs. single shuffle vs. multiple shuffle)
-
-TODO
-
-### Experiment 3: SGD with momentum
-
-TODO
-
-### Experiment 4: Small vs. large batch sizes
-
-TODO
+The component 1 folder is structured as follows:
+- `main.py`: SGD implementations (`run_sgd`, `single_suffle_sgd`, `multiple_shuffle_sgd`, `sgd_momentum`, `sgd_batch`) and helpers (`generate_data`, `compute_empirical_risk`, `compute_true_risk`, `plot_risk`)
+- `experiment_component1.ipynb`: notebook running all four experiments
 
 ## Component 2: Scaling Regimes in Two-Layer Neural Networks
 The component 2 folder is structured as follows:

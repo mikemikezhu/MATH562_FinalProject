@@ -13,6 +13,7 @@ For each component, we formulate hypotheses based on theory, design experiments 
 
 - Python 3.13+
 - Required libraries (see `requirements.txt`)
+- Jupyter support required for running `.ipynb` notebooks
 
 ## User Manual
 
@@ -29,11 +30,88 @@ Install the required libraries:
 pip install -r requirements.txt
 ```
 
+Install Jupyter support if needed:
+
+```bash
+pip install notebook ipykernel
+```
+then in VS Code select the Python kernel associated with your virtual environment to run `.ipynb` files.
+
+
+
 ## Component 1: Linear Regression and Joint Scaling Limits
 
 The component 1 folder is structured as follows:
-- `main.py`: SGD implementations (`run_sgd`, `single_suffle_sgd`, `multiple_shuffle_sgd`, `sgd_momentum`, `sgd_batch`) and helpers (`generate_data`, `compute_empirical_risk`, `compute_true_risk`, `plot_risk`)
-- `experiment_component1.ipynb`: notebook running all four experiments
+- `main.py`: Core implementation of SGD algorithms, risk computations, and theoretical scaling quantities.
+  It includes:
+  - SGD variants: `run_sgd`, `single_shuffle_sgd`, `multiple_shuffle_sgd`, `sgd_momentum_fixed_delta`, `sgd_batch`
+  - Risk functions: `compute_empirical_risk`, `compute_true_risk`
+  - Scaling terms: `compute_first_term`, `compute_second_term`, `compute_third_term_sgd`
+  - Visualization and experiments: `plot_risk`, `estimate_threshold`
+- `experiment_component1.ipynb`: Driver notebook that sets parameters and calls functions from `main.py` to run all experiments.
+
+### Experiment 1: Scaling laws in small-batch SGD
+
+This experiment studies empirical scaling laws in ridge regression under SGD by evaluating how gradient, Hessian, and stochastic noise terms scale with dimension.
+
+It uses:
+- `main.compute_first_term`
+- `main.compute_second_term`
+- `main.compute_third_term_sgd`
+
+and visualizes results using:
+- `main.plot_risk`
+
+---
+
+### Experiment 2: Effect of randomness in SGD
+
+Executed in the same notebook.
+
+We compare convergence under different sampling schemes using:
+- `main.single_shuffle_sgd`
+- `main.multiple_shuffle_sgd`
+
+with evaluation via:
+- `main.plot_risk`
+
+---
+
+### Experiment 3: SGD with momentum
+
+Executed in the same notebook.
+
+We analyze momentum dynamics using:
+- `main.sgd_momentum_fixed_delta`
+
+with results plotted using:
+- `main.plot_risk`
+
+---
+
+### Experiment 4: Small vs large batch sizes
+
+Executed in the same notebook.
+
+We study batch-size scaling effects using:
+- `main.sgd_batch`
+
+with different batch schedules `batch_size = n^η`, and visualization via:
+- `main.plot_risk`
+
+---
+
+### Extra Experiment: Threshold estimation
+
+Executed in the same notebook.
+
+We estimate transition thresholds between stable and unstable regimes using `main.estimate_threshold`.
+
+---
+
+All experiments are controlled from `experiment_component1.ipynb`, which acts as a parameter interface over functions defined in `main.py`.
+
+
 
 ## Component 2: Scaling Regimes in Two-Layer Neural Networks
 The component 2 folder is structured as follows:
